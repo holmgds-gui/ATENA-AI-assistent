@@ -31,7 +31,7 @@ def _balao(texto, de_quem="voce"):
         l.setStyleSheet(f"background:{tema.SUPERFICIE_2}; border:1px solid {tema.LINHA}; border-radius:14px;"
                         f"padding:10px 14px; font-size:14.5px;")
     else:
-        l.setStyleSheet(f"background:#0F2230; border:1px solid {tema.DESTAQUE}; border-radius:14px;"
+        l.setStyleSheet(f"background:{tema.FUNDO_SEL}; border:1px solid {tema.DESTAQUE}; border-radius:14px;"
                         f"padding:10px 14px; font-size:14.5px; color:{tema.TEXTO};")
     linha = QHBoxLayout()
     if de_quem == "voce":
@@ -132,7 +132,7 @@ class Apresentacao(QDialog):
         # 1. boas-vindas
         p = Pagina("", "")
         p.lay.takeAt(p.lay.count() - 1).widget().deleteLater()  # tira o título vazio
-        orbe = Orbe(190)
+        orbe = Orbe(210, *tema.cores_da_config(cfg))
         p.lay.addWidget(orbe, 0, Qt.AlignHCenter)
         marca = QLabel(f'<span style="letter-spacing:6px">ATHE<span style="color:{tema.DESTAQUE}">NA</span></span>')
         marca.setAlignment(Qt.AlignHCenter)

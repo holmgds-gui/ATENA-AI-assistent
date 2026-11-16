@@ -42,7 +42,7 @@ PADRAO_CONFIG = {
     "voz": {"motor": "edge", "voz": "pt-BR-FranciscaNeural", "velocidade": "+8%", "tom": "+0Hz"},
     "seguranca": {"autonomia": "confirmar_arriscadas"},
     "atalhos_rapidos": True,
-    "interface": {"orbe_tamanho": 170, "legenda": True},
+    "interface": {"paleta": "dourado", "cor_personalizada": None, "orbe_tamanho": 190, "legenda": True},
     "permissoes": {
         "apps": True, "fechar_apps": True, "navegador": True, "internet": True, "teclado": True,
         "midia_volume": True, "energia": True, "notas_timers": True, "memoria": True,

@@ -22,17 +22,26 @@ class Ponte(QObject):
 
 
 def icone_athena(tamanho=64) -> QIcon:
+    """Ícone: anel de holograma na cor de destaque."""
     pm = QPixmap(tamanho, tamanho)
     pm.fill(Qt.transparent)
     p = QPainter(pm)
     p.setRenderHint(QPainter.Antialiasing)
-    g = QRadialGradient(tamanho * 0.4, tamanho * 0.35, tamanho * 0.6)
-    g.setColorAt(0, QColor("#E6FBFF"))
-    g.setColorAt(0.4, QColor(tema.DESTAQUE))
-    g.setColorAt(1, QColor("#06222E"))
+    from PySide6.QtGui import QPen
+    cor = QColor(tema.DESTAQUE)
+    g = QRadialGradient(tamanho / 2, tamanho / 2, tamanho * 0.5)
+    g.setColorAt(0, QColor("#FFFFFF"))
+    g.setColorAt(0.18, cor)
+    g.setColorAt(0.45, QColor(cor.red(), cor.green(), cor.blue(), 60))
+    g.setColorAt(1, QColor(0, 0, 0, 0))
     p.setBrush(g)
     p.setPen(Qt.NoPen)
-    p.drawEllipse(4, 4, tamanho - 8, tamanho - 8)
+    p.drawEllipse(0, 0, tamanho, tamanho)
+    p.setBrush(Qt.NoBrush)
+    for k, f in enumerate((0.42, 0.3)):
+        p.setPen(QPen(cor, 3 if k == 0 else 2))
+        r = tamanho * f
+        p.drawEllipse(int(tamanho / 2 - r), int(tamanho / 2 - r), int(r * 2), int(r * 2))
     p.end()
     return QIcon(pm)
 
@@ -52,17 +61,18 @@ class AppAthena:
         self.qt = QApplication(argv)
         self.qt.setQuitOnLastWindowClosed(False)
         self.qt.setApplicationName("ATHENA")
-        self.qt.setStyleSheet(tema.QSS)
+        self.config = Config()
+        self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
         self.qt.setWindowIcon(icone_athena())
 
-        self.config = Config()
         self.ponte = Ponte()
         self.ponte.evento.connect(self._ao_evento)
         self.ponte.chamar.connect(lambda: self.assistente.chamar())
         self.assistente = Assistente(self.config, evento=lambda t, d=None: self.ponte.evento.emit(t, d),
                                      usar_microfone=usar_microfone)
-        self.orbe = JanelaOrbe(int(self.config.get("interface.orbe_tamanho", 170)),
-                               bool(self.config.get("interface.legenda", True)))
+        self.orbe = JanelaOrbe(int(self.config.get("interface.orbe_tamanho", 190)),
+                               bool(self.config.get("interface.legenda", True)),
+                               *tema.cores_da_config(self.config))
         self.orbe.orbe.nivel_externo = lambda: self.assistente.ouvido.nivel if self.assistente.ouvido else 0.0
         self.orbe.clicado.connect(self.assistente.chamar)
         self.orbe.abrir_painel.connect(self.abrir_painel)
@@ -114,6 +124,7 @@ class AppAthena:
             self.painel = Painel(self.config, self.assistente.cerebro)
             self.painel.enviar_texto.connect(self.assistente.enviar_texto)
             self.painel.salvo.connect(self._config_salva)
+            self.painel.cores_mudaram.connect(self.orbe.orbe.set_cores)
             self.painel.rever_apresentacao.connect(lambda: Apresentacao(self.config, so_carrossel=True).exec())
         self.painel.show()
         self.painel.raise_()
@@ -121,6 +132,8 @@ class AppAthena:
 
     def _config_salva(self):
         self.assistente.recarregar_config()
+        self.orbe.orbe.set_cores(*tema.cores_da_config(self.config))
+        self.orbe._mostrar_legenda = bool(self.config.get("interface.legenda", True))
         self._registrar_atalho()
 
     def _ao_evento(self, tipo, dados):
@@ -145,6 +158,8 @@ class AppAthena:
             if ap.exec() != Apresentacao.Accepted:
                 return 0  # fechou a apresentação sem terminar
             self.config.recarregar()
+            self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
+            self.orbe.orbe.set_cores(*tema.cores_da_config(self.config))
         self.orbe.posicionar_canto()
         self.orbe.show()
         self._registrar_atalho()

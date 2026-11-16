@@ -37,5 +37,7 @@ seguranca:
 atalhos_rapidos: true           # comandos simples (abrir app, horas, volume) sem gastar IA
 
 interface:
-  orbe_tamanho: 170
+  paleta: dourado               # dourado | ciano | dourado_ciano | vermelho | verde | roxo | branco | personalizada
+  cor_personalizada: null       # ex: "#FF00AA" (usada quando paleta = personalizada)
+  orbe_tamanho: 190
   legenda: true                 # mostra o que você falou e o que ela respondeu embaixo do orbe
