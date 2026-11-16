@@ -1,0 +1,41 @@
+# ============================================================
+#  ATHENA — Configurações gerais
+#  (Quase tudo aqui também pode ser mudado pelo painel)
+# ============================================================
+
+cerebro:
+  provedor: ollama              # por enquanto: ollama (gemini/claude podem ser plugados depois)
+  url: http://localhost:11434
+  modelo: qwen3:8b              # se ficar lento, troque por qwen3:4b
+  temperatura: 0.6
+  max_historico: 16             # quantas mensagens da conversa ela lembra
+
+ativacao:
+  palavras: [atena, athena]     # como você chama ela
+  atalho: ctrl+alt+a            # atalho de teclado pra chamar sem falar
+  modelo_vosk: modelos/vosk-pt  # pasta do modelo de reconhecimento da palavra
+  conversa_continua: true       # depois de responder, fica ouvindo mais um pouco sem precisar chamar de novo
+  segundos_conversa_continua: 6
+
+ouvido:
+  modelo_whisper: small         # tiny | base | small | medium (maior = mais preciso e mais lento)
+  dispositivo: cpu              # cpu (placas AMD não usam CUDA)
+  silencio_fim: 1.0             # segundos de silêncio pra considerar que você terminou de falar
+  max_fala: 15                  # tempo máximo de uma fala, em segundos
+  sensibilidade: 2.5            # quanto maior, mais alto você precisa falar pra ela captar
+  microfone: null               # null = microfone padrão do Windows
+
+voz:
+  motor: edge                   # edge (grátis, neural, precisa de internet) | offline
+  voz: pt-BR-FranciscaNeural    # outras: pt-BR-ThalitaNeural, pt-BR-AntonioNeural
+  velocidade: "+8%"
+  tom: "+0Hz"
+
+seguranca:
+  autonomia: confirmar_arriscadas   # confirmar_arriscadas | confirmar_tudo | livre
+
+atalhos_rapidos: true           # comandos simples (abrir app, horas, volume) sem gastar IA
+
+interface:
+  orbe_tamanho: 170
+  legenda: true                 # mostra o que você falou e o que ela respondeu embaixo do orbe

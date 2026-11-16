@@ -1,0 +1,35 @@
+# ============================================================
+#  Apelidos de apps e sites
+#  "como você fala": "nome do app no menu Iniciar"  ou  "https://site"
+# ============================================================
+
+apps:
+  navegador: chrome
+  zap: whatsapp
+  zapzap: whatsapp
+  música: spotify
+  musica: spotify
+  calculadora: calculadora
+  bloco de notas: bloco de notas
+  explorador: explorador de arquivos
+  arquivos: explorador de arquivos
+  configurações: configurações
+  vscode: visual studio code
+  vs code: visual studio code
+  código: visual studio code
+
+sites:
+  youtube: https://www.youtube.com
+  google: https://www.google.com
+  gmail: https://mail.google.com
+  e-mail: https://mail.google.com
+  email: https://mail.google.com
+  whatsapp web: https://web.whatsapp.com
+  instagram: https://www.instagram.com
+  netflix: https://www.netflix.com
+  github: https://github.com
+  chatgpt: https://chatgpt.com
+  claude: https://claude.ai
+  mapa: https://maps.google.com
+  maps: https://maps.google.com
+  tradutor: https://translate.google.com
