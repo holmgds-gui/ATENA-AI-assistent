@@ -1,7 +1,7 @@
 """Janela flutuante da ATHENA com o holograma (orbe) e a legenda."""
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import QPropertyAnimation, Qt, QTimer, Signal
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QVBoxLayout, QWidget
 
@@ -25,8 +25,8 @@ class JanelaOrbe(QWidget):
         self.legenda.setAlignment(Qt.AlignCenter)
         self.legenda.setFixedWidth(max(260, tamanho + 90))
         self.legenda.setStyleSheet(
-            f"background: rgba(10,14,20,215); border: 1px solid {tema.LINHA}; border-radius: 12px;"
-            f"padding: 8px 12px; color: {tema.TEXTO}; font-size: 13px;")
+            f"background: rgba(4,7,11,225); border: 1px solid {tema.rgba(tema.DESTAQUE, 0.4)};"
+            f"border-left: 2px solid {tema.DESTAQUE}; padding: 7px 12px; color: {tema.TEXTO}; font-size: 14.5px;")
         self.legenda.hide()
         self._mostrar_legenda = legenda
 
@@ -38,7 +38,40 @@ class JanelaOrbe(QWidget):
         self.setFixedWidth(self.legenda.width())
         self._arrastando = None
         self._apagar = QTimer(self, singleShot=True, timeout=self._esconder_legenda)
+        self._timer_sumir = QTimer(self, singleShot=True, timeout=self._sumir)
+        self._anim = QPropertyAnimation(self, b"windowOpacity", self)
+        self._anim.finished.connect(self._fim_anim)
         self.setToolTip("Clique duas vezes pra chamar a ATHENA · botão direito: opções")
+
+    # ---- surgir / sumir (modo invisível)
+    def surgir(self) -> None:
+        self._timer_sumir.stop()
+        if self.isVisible() and self.windowOpacity() > 0.95:
+            return
+        self._anim.stop()
+        if not self.isVisible():
+            self.setWindowOpacity(0.0)
+            self.show()
+            self.orbe.materializar()
+        self._anim.setStartValue(self.windowOpacity())
+        self._anim.setEndValue(1.0)
+        self._anim.setDuration(350)
+        self._anim.start()
+
+    def sumir_depois(self, segundos: float) -> None:
+        self._timer_sumir.start(int(segundos * 1000))
+
+    def _sumir(self) -> None:
+        self._anim.stop()
+        self._anim.setStartValue(self.windowOpacity())
+        self._anim.setEndValue(0.0)
+        self._anim.setDuration(700)
+        self._anim.start()
+
+    def _fim_anim(self) -> None:
+        if self.windowOpacity() <= 0.01:
+            self.hide()
+            self.legenda.hide()
 
     def posicionar_canto(self) -> None:
         tela = QApplication.primaryScreen().availableGeometry()
@@ -49,9 +82,10 @@ class JanelaOrbe(QWidget):
         if not self._mostrar_legenda or not texto:
             return
         cor = tema.DESTAQUE if de_quem == "athena" else tema.APAGADO
-        prefixo = "" if de_quem == "athena" else "Você: "
+        prefixo = "ATHENA ›" if de_quem == "athena" else "VOCÊ ›"
         curto = texto if len(texto) < 220 else texto[:217] + "…"
-        self.legenda.setText(f'<span style="color:{cor}">{prefixo}</span>{curto}')
+        self.legenda.setText(f'<span style="font-family:\'Share Tech Mono\'; font-size:10px; color:{cor};'
+                             f' letter-spacing:1px">{prefixo}</span><br>{curto}')
         self.legenda.show()
         self.adjustSize()
         self._apagar.start(int(segundos * 1000 + len(texto) * 45))

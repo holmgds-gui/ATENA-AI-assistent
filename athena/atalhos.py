@@ -51,6 +51,26 @@ def tentar(frase: str, config) -> ResultadoAtalho | None:
 
     pode = config.permitido
 
+    # ---- temperatura / estado do PC
+    if re.search(r"\b(temperatura|esquentando|quente)\b.*\b(pc|computador|cpu|processador|placa)\b", t) \
+            or re.search(r"\b(como (ta|esta) o (pc|computador))\b", t):
+        r = ferramentas.executar("info_sistema", {}, ferramentas.Contexto(config=config))
+        try:
+            import json as _json
+            d = _json.loads(r)
+        except Exception:
+            return None
+        partes = [f"CPU em {d.get('cpu_uso', '?')}"]
+        if "cpu_temperatura" in d:
+            partes.append(f"a {d['cpu_temperatura'].replace('°C', 'graus')}")
+        if "gpu_temperatura" in d:
+            partes.append(f"placa de vídeo a {d['gpu_temperatura'].replace('°C', 'graus')}")
+        partes.append(f"RAM {d.get('ram', '').split('(')[-1].rstrip(')')} em uso")
+        frase = ", ".join(partes) + "."
+        if "observacao" in d:
+            frase += " Pra ver temperaturas, abra o LibreHardwareMonitor."
+        return ResultadoAtalho(frase[0].upper() + frase[1:], "info")
+
     # ---- volume
     m = pode("midia_volume") and re.search(r"\b(aumenta|aumentar|sobe|subir|abaixa|abaixar|diminui|diminuir|baixa)\b.*\bvolume\b", t) \
         or (pode("midia_volume") and re.search(r"\bvolume\b.*\b(mais alto|mais baixo|pra cima|pra baixo)\b", t))

@@ -44,6 +44,8 @@ Dá pra trocar depois em **Configurações → Cérebro**.
 | "Atena, lembra que eu prefiro respostas curtas" | guarda na memória |
 | "Atena, desliga o PC" | pede confirmação antes |
 
+- **Palmas:** bata **2 palmas** e o holograma surge. Em Configurações → Voz → Palmas dá pra montar uma **rotina**: frase de boas-vindas, apps e sites que abrem sozinhos e uma música tocando (ex: "back in black").
+- **Modo invisível:** o holograma só aparece quando ela é chamada e some sozinho depois (dá pra deixar sempre na tela em Aparência).
 - **Uma frase só:** dá pra falar "Atena" e o pedido de uma vez.
 - **Conversa contínua:** depois de responder, ela ainda ouve por uns 6 segundos, então dá pra emendar outro pedido.
 - **Sem falar:** clique duas vezes no orbe ou use **Ctrl+Alt+A**.
@@ -51,9 +53,17 @@ Dá pra trocar depois em **Configurações → Cérebro**.
 - **Por texto:** Configurações → aba **Conversa**.
 - **Botão direito no orbe:** configurações, microfone liga/desliga, sair.
 
-### Cores do orbe
+### O holograma
 
-🔵 esperando · 🩵 ouvindo · 🟣 pensando · 🔵 com ondas falando · ⚪ microfone desligado · 🔴 erro
+Globo de malha 3D + anéis de giroscópio + rede neural + partículas. Esperando: gira devagar · ouvindo: pulsa com a sua voz · pensando: pulsos correm pela rede · falando: a malha ondula e solta ondas · cinza: microfone desligado · vermelho: erro. Cor padrão dourada; troque em **Aparência** (7 paletas + personalizada).
+
+## Monitor do PC (aba SISTEMA)
+
+Uso e temperatura de CPU e placa de vídeo, RAM, VRAM, clocks (com indicador de boost), potência, ventoinhas, discos, rede, histórico de 60 s e processos mais pesados. Também dá pra perguntar: *"Atena, como tá o PC?"*
+
+- CPU, RAM, disco, rede e processos funcionam sempre.
+- **Temperaturas, clocks, ventoinhas e GPU** precisam do [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) aberto (o instalador oferece instalar). Abra como administrador e ligue **Options → Remote Web Server → Run**.
+- A ATHENA **mostra** os clocks e se o boost está ativo, mas não faz overclock (isso é melhor no AMD Adrenalin).
 
 ---
 
@@ -96,7 +106,10 @@ A pasta do projeto só tem os padrões. Pra rever a apresentação: **Configura�
 | `athena/atalhos.py` | comandos rápidos sem IA |
 | `athena/sistema.py` | o que realmente mexe no PC (Windows/mac/Linux) |
 | `athena/voz.py` | a voz dela |
-| `athena/ui/` | orbe, apresentação e painel de configurações |
+| `athena/palmas.py` | detector de palmas (sem IA) |
+| `athena/monitor.py` | leitura de sensores do PC |
+| `athena/ui/` | holograma, apresentação, painel HUD e monitor |
+| `athena/ui/fontes/` | Orbitron, Rajdhani e Share Tech Mono (licença OFL) |
 | `config/` | configurações padrão |
 
 ### Criar uma habilidade nova
@@ -126,6 +139,7 @@ iniciar.bat debug              :: abre mostrando as mensagens (pra achar erros)
 ## Problemas comuns
 
 - **"Não estou encontrando o Ollama":** abra o app do Ollama (fica perto do relógio do Windows).
+- **Palmas não funcionam / disparam sozinhas:** ajuste a **Força da palma** em Configurações → Voz.
 - **Ela não ouve "Atena":** em Configurações → Voz e ativação, diminua a **Exigência de volume**. Confira também se o microfone certo é o padrão do Windows.
 - **Ela acorda sozinha:** aumente a **Exigência de volume**.
 - **Respostas lentas:** troque pra `qwen3:4b` ou use o reconhecimento `base`.

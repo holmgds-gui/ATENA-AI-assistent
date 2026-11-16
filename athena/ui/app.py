@@ -61,6 +61,7 @@ class AppAthena:
         self.qt = QApplication(argv)
         self.qt.setQuitOnLastWindowClosed(False)
         self.qt.setApplicationName("ATHENA")
+        tema.carregar_fontes()
         self.config = Config()
         self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
         self.qt.setWindowIcon(icone_athena())
@@ -104,7 +105,12 @@ class AppAthena:
         self.bandeja.show()
 
     def _alternar_orbe(self):
-        self.orbe.setVisible(not self.orbe.isVisible())
+        if self.orbe.isVisible():
+            self.orbe.hide()
+        else:
+            self.orbe.setWindowOpacity(1.0)
+            self.orbe.show()
+            self.orbe.orbe.materializar()
 
     def _registrar_atalho(self):
         if self._hotkey:
@@ -134,11 +140,25 @@ class AppAthena:
         self.assistente.recarregar_config()
         self.orbe.orbe.set_cores(*tema.cores_da_config(self.config))
         self.orbe._mostrar_legenda = bool(self.config.get("interface.legenda", True))
+        if not self._invisivel:
+            self.orbe.setWindowOpacity(1.0)
+            self.orbe.show()
         self._registrar_atalho()
+
+    @property
+    def _invisivel(self) -> bool:
+        return self.config.get("interface.modo", "invisivel") == "invisivel"
 
     def _ao_evento(self, tipo, dados):
         if tipo == "estado":
             self.orbe.orbe.set_estado(dados)
+            if self._invisivel:
+                if dados in ("ouvindo", "pensando", "falando", "erro"):
+                    self.orbe.surgir()
+                elif dados in ("dormindo", "mudo"):
+                    self.orbe.sumir_depois(float(self.config.get("interface.segundos_ate_sumir", 6)))
+        elif tipo == "acao" and dados == "ativou" and self._invisivel:
+            self.orbe.surgir()
         elif tipo in ("voce", "athena"):
             self.orbe.mostrar_texto(dados, tipo)
             if self.painel is not None:
@@ -161,7 +181,8 @@ class AppAthena:
             self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
             self.orbe.orbe.set_cores(*tema.cores_da_config(self.config))
         self.orbe.posicionar_canto()
-        self.orbe.show()
+        if not self._invisivel:
+            self.orbe.show()
         self._registrar_atalho()
         self.assistente.iniciar()
         return self.qt.exec()

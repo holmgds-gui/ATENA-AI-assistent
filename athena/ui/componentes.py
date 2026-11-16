@@ -4,7 +4,7 @@ from __future__ import annotations
 import threading
 
 from PySide6.QtCore import Property, QEasingCurve, QPropertyAnimation, QRectF, Qt, Signal
-from PySide6.QtGui import QColor, QPainter
+from PySide6.QtGui import QColor, QPainter, QPen
 from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QCheckBox, QComboBox, QFrame, QGridLayout, QHBoxLayout,
                                QLabel, QPlainTextEdit, QPushButton, QRadioButton, QSizePolicy, QSlider,
                                QVBoxLayout, QWidget)
@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (QAbstractButton, QButtonGroup, QCheckBox, QComboB
 from ..config import PERMISSOES, PRESETS
 from ..voz import VOZES_EDGE
 from . import tema
+from .hud import PainelHud, rotulo_secao
 
 NOMES_PRESETS = {
     "elegante_com_humor": ("Elegante com humor", "Estilo JARVIS: educada, precisa e com ironia fina"),
@@ -60,43 +61,31 @@ class Interruptor(QAbstractButton):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        fundo = QColor(tema.DESTAQUE) if self.isChecked() else QColor(tema.LINHA)
+        d = tema.DESTAQUE
+        p.setPen(QPen(tema.cor(d, 0.35 + 0.6 * self._pos), 1))
+        p.setBrush(tema.cor(d, 0.05 + 0.2 * self._pos))
+        p.drawRect(QRectF(0.5, 3.5, self.width() - 1, self.height() - 7))
+        x = 4 + self._pos * (self.width() - 22)
         p.setPen(Qt.NoPen)
-        p.setBrush(fundo)
-        p.drawRoundedRect(QRectF(0, 0, self.width(), self.height()), 13, 13)
-        x = 3 + self._pos * (self.width() - 26)
-        p.setBrush(QColor("#FFFFFF"))
-        p.drawEllipse(QRectF(x, 3, 20, 20))
+        p.setBrush(tema.cor(d, 1) if self.isChecked() else QColor(tema.APAGADO))
+        p.drawRect(QRectF(x, 7, 14, self.height() - 14))
+        p.setBrush(tema.cor(d, 0.25 * self._pos))
+        p.drawRect(QRectF(x - 3, 4, 20, self.height() - 8))
         p.end()
 
 
-class Cartao(QFrame):
-    clicado = Signal()
-
+class Cartao(PainelHud):
     def __init__(self, titulo: str, descricao: str, parent=None):
-        super().__init__(parent)
-        self.setObjectName("cartao")
-        self.setCursor(Qt.PointingHandCursor)
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(14, 11, 14, 11)
-        lay.setSpacing(2)
-        t = QLabel(titulo)
-        t.setStyleSheet("font-weight: 700; font-size: 14.5px; background: transparent;")
+        super().__init__("", parent, clicavel=True, chanfro=9)
+        self.lay.setContentsMargins(14, 10, 14, 10)
+        self.lay.setSpacing(1)
+        t = QLabel(titulo.upper())
+        t.setStyleSheet(f"font-weight: 700; font-size: 14px; letter-spacing: 1.5px;")
         d = QLabel(descricao)
         d.setObjectName("apagado")
         d.setWordWrap(True)
-        d.setStyleSheet("background: transparent;")
-        lay.addWidget(t)
-        lay.addWidget(d)
-
-    def set_selecionado(self, v: bool):
-        self.setProperty("selecionado", "true" if v else "false")
-        self.style().unpolish(self)
-        self.style().polish(self)
-
-    def mouseReleaseEvent(self, ev):
-        if ev.button() == Qt.LeftButton:
-            self.clicado.emit()
+        self.lay.addWidget(t)
+        self.lay.addWidget(d)
 
 
 class SeletorPersonalidade(QWidget):
@@ -114,9 +103,7 @@ class SeletorPersonalidade(QWidget):
             self.cartoes[chave] = c
             grade.addWidget(c, i // 2, i % 2, 1, 2 if chave == "personalizada" else 1)
         lay.addLayout(grade)
-        rot = QLabel("COMO ELA É (DÁ PRA EDITAR)")
-        rot.setObjectName("secao")
-        lay.addWidget(rot)
+        lay.addWidget(rotulo_secao("Como ela é (dá pra editar)"))
         self.texto = QPlainTextEdit()
         self.texto.setPlaceholderText("Descreva a personalidade: jeito de falar, humor, manias...")
         self.texto.setMinimumHeight(110)
@@ -156,17 +143,17 @@ class ListaPermissoes(QWidget):
         lay.setSpacing(6)
         self.chaves: dict[str, Interruptor] = {}
         for chave, (titulo, desc) in PERMISSOES.items():
-            linha = QFrame()
-            linha.setObjectName("cartao")
-            h = QHBoxLayout(linha)
-            h.setContentsMargins(14, 9, 12, 9)
+            linha = PainelHud("", chanfro=8)
+            linha.lay.setContentsMargins(0, 0, 0, 0)
+            h = QHBoxLayout()
+            linha.lay.addLayout(h)
+            h.setContentsMargins(14, 8, 12, 8)
             v = QVBoxLayout()
             v.setSpacing(1)
-            t = QLabel(titulo)
-            t.setStyleSheet("font-weight: 600; background: transparent;")
+            t = QLabel(titulo.upper())
+            t.setStyleSheet("font-weight: 700; letter-spacing: 1.2px;")
             d = QLabel(desc)
             d.setObjectName("apagado")
-            d.setStyleSheet("background: transparent;")
             d.setWordWrap(True)
             v.addWidget(t)
             v.addWidget(d)
@@ -176,8 +163,7 @@ class ListaPermissoes(QWidget):
             self.chaves[chave] = sw
             lay.addWidget(linha)
 
-        rot = QLabel("CONFIRMAÇÃO")
-        rot.setObjectName("secao")
+        rot = rotulo_secao("Confirmação")
         rot.setContentsMargins(0, 10, 0, 0)
         lay.addWidget(rot)
         self.grupo = QButtonGroup(self)
@@ -247,7 +233,7 @@ class SeletorVoz(QWidget):
         d.setContentsMargins(28, 0, 0, 0)
         lay.addWidget(d)
 
-        self.testar = QPushButton("▶  Ouvir exemplo")
+        self.testar = QPushButton("▶  OUVIR EXEMPLO")
         self.testar.clicked.connect(self._testar)
         self.testar.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         lay.addWidget(self.testar)
@@ -273,7 +259,7 @@ class SeletorVoz(QWidget):
         frase = f"Olá{', ' + nome if nome else ''}. Sou a {self.config.nome_ia}. Todos os sistemas operacionais."
         voz = Voz(_Cfg(self.config, self.valores()))
         self.testar.setEnabled(False)
-        self.testar.setText("Falando…")
+        self.testar.setText("TRANSMITINDO…")
 
         def rodar():
             try:
@@ -287,4 +273,4 @@ class SeletorVoz(QWidget):
 
     def _reset_botao(self):
         self.testar.setEnabled(True)
-        self.testar.setText("▶  Ouvir exemplo")
+        self.testar.setText("▶  OUVIR EXEMPLO")

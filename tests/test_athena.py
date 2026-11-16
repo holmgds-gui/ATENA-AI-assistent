@@ -189,3 +189,29 @@ def test_indice_apps_procura():
     assert idx.procurar("configuracoes").nome == "Configurações"
     assert idx.procurar("discordi").nome == "Discord"  # erro de transcrição
     assert idx.procurar("photoshop") is None
+
+
+# ---------------------------------------------------------------- rotina das palmas
+def test_rotina_palmas(cfg, chamadas):
+    from athena.assistente import Assistente
+    import time as _t
+    cfg.salvar_geral({"rotina_palmas": {"frase": "Bem-vindo, {nome}.", "apps": ["spotify", "discord"],
+                                        "sites": ["youtube"], "musica": "back in black", "ouvir_depois": False}})
+    a = Assistente(cfg, usar_microfone=False)
+    falas = []
+    a.voz.falar = lambda t, ao_comecar=None: falas.append(t)
+    ouvir = a.executar_rotina_palmas()
+    _t.sleep(0.2)
+    assert falas == ["Bem-vindo, Gui."]
+    assert ("app", "spotify") in chamadas and ("app", "discord") in chamadas
+    assert ("site", "youtube") in chamadas and ("yt", "back in black") in chamadas
+    assert ouvir is False
+
+
+def test_rotina_palmas_vazia_so_cumprimenta(cfg, chamadas):
+    from athena.assistente import Assistente
+    a = Assistente(cfg, usar_microfone=False)
+    falas = []
+    a.voz.falar = lambda t, ao_comecar=None: falas.append(t)
+    assert a.executar_rotina_palmas() is True
+    assert len(falas) == 1 and chamadas == []

@@ -83,6 +83,17 @@ if defined MODELO (
     ".venv\Scripts\python.exe" -c "from athena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '%MODELO%'}})"
 )
 
+REM ---------- Extra: sensores de temperatura ----------
+echo.
+echo [+] Monitor do PC: temperaturas, clocks e ventoinhas usam o LibreHardwareMonitor (gratis).
+where winget >nul 2>nul && (
+    choice /c SN /m "      Instalar o LibreHardwareMonitor"
+    if !errorlevel! equ 1 (
+        winget install -e --id LibreHardwareMonitor.LibreHardwareMonitor --accept-package-agreements --accept-source-agreements
+        echo       Depois abra ele como administrador e ligue: Options ^> Remote Web Server ^> Run
+    )
+)
+
 REM ---------- 5. Atalhos ----------
 echo.
 echo [5/5] Criando atalho na Area de Trabalho...

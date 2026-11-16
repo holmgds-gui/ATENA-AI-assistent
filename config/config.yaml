@@ -13,6 +13,9 @@ cerebro:
 ativacao:
   palavras: [atena, athena]     # como você chama ela
   atalho: ctrl+alt+a            # atalho de teclado pra chamar sem falar
+  palmas: true                  # bater palmas também chama a ATHENA
+  num_palmas: 2                 # quantas palmas seguidas (1, 2 ou 3)
+  exigencia_palmas: 1.0         # maior = precisa de palma mais forte (se disparar sozinha, aumente)
   modelo_vosk: modelos/vosk-pt  # pasta do modelo de reconhecimento da palavra
   conversa_continua: true       # depois de responder, fica ouvindo mais um pouco sem precisar chamar de novo
   segundos_conversa_continua: 6
@@ -31,12 +34,21 @@ voz:
   velocidade: "+8%"
   tom: "+0Hz"
 
+rotina_palmas:                  # o que acontece quando você bate palmas
+  frase: "Bem-vindo de volta, {nome}. Preparando tudo."
+  apps: []                      # ex: [spotify, discord, visual studio code]
+  sites: []                     # ex: [youtube, https://github.com]
+  musica: ""                    # ex: "back in black ac dc" (toca no YouTube)
+  ouvir_depois: true            # depois da rotina, fica esperando seu pedido
+
 seguranca:
   autonomia: confirmar_arriscadas   # confirmar_arriscadas | confirmar_tudo | livre
 
 atalhos_rapidos: true           # comandos simples (abrir app, horas, volume) sem gastar IA
 
 interface:
+  modo: invisivel               # invisivel = holograma só aparece quando chamada | sempre = fica na tela
+  segundos_ate_sumir: 6
   paleta: dourado               # dourado | ciano | dourado_ciano | vermelho | verde | roxo | branco | personalizada
   cor_personalizada: null       # ex: "#FF00AA" (usada quando paleta = personalizada)
   orbe_tamanho: 190

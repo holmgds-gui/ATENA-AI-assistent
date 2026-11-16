@@ -151,9 +151,22 @@ def _energia(ctx: Contexto, acao: str):
     return "Executando: " + sistema.energia(acao)
 
 
-@ferramenta("info_sistema", "Mostra uso de CPU, memória RAM, disco e bateria do computador.")
+_MONITOR = None
+
+
+@ferramenta("info_sistema", "Estado do computador: uso e temperatura de CPU e placa de vídeo, RAM, clocks, "
+            "ventoinhas, disco e o programa mais pesado.")
 def _info(ctx: Contexto):
-    return json.dumps(sistema.info_sistema(), ensure_ascii=False)
+    global _MONITOR
+    try:
+        from .monitor import Monitor, resumo_falado
+        if _MONITOR is None:
+            _MONITOR = Monitor()
+            import time
+            time.sleep(0.5)  # a 1ª leitura de CPU precisa de um intervalo
+        return json.dumps(resumo_falado(_MONITOR.ler()), ensure_ascii=False)
+    except Exception:
+        return json.dumps(sistema.info_sistema(), ensure_ascii=False)
 
 
 @ferramenta("data_hora", "Diz a data e hora atuais.")

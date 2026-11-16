@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, 
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from . import tema
+from .hud import PainelHud, pintar_fundo, rotulo_secao
 from .componentes import ListaPermissoes, SeletorPersonalidade, SeletorVoz
 from .orbe import Orbe
 
@@ -25,14 +26,17 @@ def _rotulo(texto, nome="subtitulo", wrap=True, centro=True):
 
 
 def _balao(texto, de_quem="voce"):
-    l = QLabel(texto)
+    quem = "VOCÊ ›" if de_quem == "voce" else "ATHENA ›"
+    cor_q = tema.APAGADO if de_quem == "voce" else tema.DESTAQUE
+    l = QLabel(f'<span style="font-family:\'Share Tech Mono\'; font-size:10px; color:{cor_q}; letter-spacing:1px">'
+               f'{quem}</span><br>{texto}')
     l.setWordWrap(True)
     if de_quem == "voce":
-        l.setStyleSheet(f"background:{tema.SUPERFICIE_2}; border:1px solid {tema.LINHA}; border-radius:14px;"
-                        f"padding:10px 14px; font-size:14.5px;")
+        l.setStyleSheet(f"background:{tema.rgba('#FFFFFF', 0.03)}; border:1px solid {tema.LINHA};"
+                        f"border-left: 2px solid {tema.APAGADO}; padding:8px 12px; font-size:15px;")
     else:
-        l.setStyleSheet(f"background:{tema.FUNDO_SEL}; border:1px solid {tema.DESTAQUE}; border-radius:14px;"
-                        f"padding:10px 14px; font-size:14.5px; color:{tema.TEXTO};")
+        l.setStyleSheet(f"background:{tema.rgba(tema.DESTAQUE, 0.08)}; border:1px solid {tema.rgba(tema.DESTAQUE, 0.35)};"
+                        f"border-left: 2px solid {tema.DESTAQUE}; padding:8px 12px; font-size:15px; color:#FFFFFF;")
     linha = QHBoxLayout()
     if de_quem == "voce":
         linha.addStretch(1)
@@ -55,13 +59,14 @@ class Pagina(QWidget):
         area.setFrameShape(QFrame.NoFrame)
         area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         conteudo = QWidget()
+        conteudo.setObjectName("transparente")
         self.lay = QVBoxLayout(conteudo)
         self.lay.setContentsMargins(28, 10, 28, 10)
         self.lay.setSpacing(14)
         if centralizar:
             self.lay.addStretch(1)
-        t = _rotulo(titulo, "titulo")
-        self.lay.addWidget(t)
+        if titulo:
+            self.lay.addWidget(_rotulo(titulo.upper(), "titulo"))
         if texto:
             self.lay.addWidget(_rotulo(texto))
         self._centralizar = centralizar
@@ -93,7 +98,7 @@ class Apresentacao(QDialog):
         self.barras_lay = QHBoxLayout()
         self.barras_lay.setSpacing(4)
         topo.addLayout(self.barras_lay, 1)
-        self.pular = QPushButton("Pular")
+        self.pular = QPushButton("PULAR ›")
         self.pular.setObjectName("link")
         self.pular.clicked.connect(self._pular)
         topo.addWidget(self.pular)
@@ -107,9 +112,9 @@ class Apresentacao(QDialog):
         # ---- rodapé: Voltar / Próximo
         rod = QHBoxLayout()
         rod.setContentsMargins(20, 8, 20, 18)
-        self.voltar = QPushButton("Voltar")
+        self.voltar = QPushButton("‹ VOLTAR")
         self.voltar.clicked.connect(lambda: self.ir(self.pilha.currentIndex() - 1))
-        self.proximo = QPushButton("Próximo")
+        self.proximo = QPushButton("PRÓXIMO ▸")
         self.proximo.setObjectName("primario")
         self.proximo.setMinimumHeight(48)
         self.voltar.setMinimumHeight(48)
@@ -121,7 +126,7 @@ class Apresentacao(QDialog):
         self.barras = []
         for _ in range(self.pilha.count()):
             b = QFrame()
-            b.setFixedHeight(4)
+            b.setFixedHeight(3)
             self.barras.append(b)
             self.barras_lay.addWidget(b)
         self.ir(0, animar=False)
@@ -131,22 +136,22 @@ class Apresentacao(QDialog):
         cfg = self.config
         # 1. boas-vindas
         p = Pagina("", "")
-        p.lay.takeAt(p.lay.count() - 1).widget().deleteLater()  # tira o título vazio
         orbe = Orbe(210, *tema.cores_da_config(cfg))
         p.lay.addWidget(orbe, 0, Qt.AlignHCenter)
-        marca = QLabel(f'<span style="letter-spacing:6px">ATHE<span style="color:{tema.DESTAQUE}">NA</span></span>')
+        marca = QLabel(f'ATHE<span style="color:{tema.DESTAQUE}">NA</span>')
         marca.setAlignment(Qt.AlignHCenter)
-        marca.setStyleSheet(f"font-family:{tema.FONTE_TITULO}; font-size:40px; font-weight:800;")
+        marca.setStyleSheet(f"font-family:{tema.FONTE_TITULO}; font-size:38px; font-weight:800; letter-spacing:10px;")
         p.lay.addWidget(marca)
-        p.lay.addWidget(_rotulo("Assistente Tecnológica de Execução<br>e Navegação Artificial", "apagado"))
+        p.lay.addWidget(_rotulo("ASSISTENTE TECNOLÓGICA DE EXECUÇÃO<br>E NAVEGAÇÃO ARTIFICIAL", "secao"))
         p.lay.addWidget(_rotulo("Sua assistente de voz que <b>conversa</b>, <b>pesquisa</b> e <b>mexe no seu PC</b> "
                                 "por você. Igual ao JARVIS, só que sua."))
         p.fechar()
         self.pilha.addWidget(p)
 
         # 2. como chamar
-        p = Pagina("É só chamar", "Fale <b>“Atena”</b> e peça o que quiser, numa frase só. "
-                                  "Também dá pra clicar duas vezes no orbe ou usar o atalho <b>Ctrl+Alt+A</b>.")
+        p = Pagina("É só chamar", "Fale <b>“Atena”</b> e peça o que quiser, numa frase só, ou "
+                                  "<b>bata 2 palmas</b>: o holograma surge e ela espera seu pedido. "
+                                  "Também dá pra usar o atalho <b>Ctrl+Alt+A</b>.")
         for txt, quem in (("Atena, abre o Spotify", "voce"), ("Abrindo o Spotify.", "athena"),
                           ("Atena, quanto tá o dólar hoje?", "voce"),
                           ("Pesquisei aqui: o dólar está em…", "athena"),
@@ -166,18 +171,16 @@ class Apresentacao(QDialog):
                              ("Escrever por você", "digita textos e aperta atalhos no app aberto"),
                              ("Controlar o PC", "volume, bloquear a tela, desligar"),
                              ("Notas, timers e memória", "anota, avisa e lembra do que você contou")):
-            c = QFrame()
-            c.setObjectName("cartao")
-            v = QVBoxLayout(c)
-            v.setContentsMargins(14, 10, 14, 10)
-            v.setSpacing(1)
-            a = QLabel(f'<span style="color:{tema.DESTAQUE}">●</span>&nbsp;&nbsp;<b>{titulo}</b>')
-            a.setStyleSheet("background:transparent;")
+            c = PainelHud("", chanfro=8)
+            c.lay.setContentsMargins(14, 8, 14, 8)
+            c.lay.setSpacing(0)
+            a = QLabel(f'<span style="color:{tema.DESTAQUE}">▸</span>&nbsp;&nbsp;{titulo.upper()}')
+            a.setStyleSheet("font-weight:700; letter-spacing:1.5px;")
             b = QLabel(desc)
             b.setObjectName("apagado")
-            b.setStyleSheet("background:transparent; padding-left: 20px;")
-            v.addWidget(a)
-            v.addWidget(b)
+            b.setStyleSheet("padding-left: 18px;")
+            c.lay.addWidget(a)
+            c.lay.addWidget(b)
             p.lay.addWidget(c)
         p.fechar()
         self.pilha.addWidget(p)
@@ -206,7 +209,7 @@ class Apresentacao(QDialog):
         self.campo_nome.setStyleSheet("font-size: 18px; padding: 14px;")
         self.campo_nome.textChanged.connect(self._atualizar_botoes)
         p.lay.addWidget(self.campo_nome)
-        p.lay.addWidget(_rotulo("NOME DA ASSISTENTE", "secao", centro=False))
+        p.lay.addWidget(rotulo_secao("Nome da assistente"))
         self.campo_ia = QLineEdit(cfg.personalidade.get("nome", "ATHENA"))
         self.campo_ia.setPlaceholderText("ATHENA")
         p.lay.addWidget(self.campo_ia)
@@ -244,7 +247,7 @@ class Apresentacao(QDialog):
         self.checks = {}
         for chave, texto in (("ollama", "Ollama (cérebro) rodando"), ("modelo", "Modelo de IA baixado"),
                              ("mic", "Microfone encontrado"), ("vosk", "Detector da palavra “Atena”")):
-            l = _rotulo(f"…&nbsp; {texto}", "subtitulo", centro=False)
+            l = _rotulo(f"…&nbsp; {texto.upper()}", "subtitulo", centro=False)
             l.setProperty("texto", texto)
             self.checks[chave] = l
             p.lay.addWidget(l)
@@ -270,7 +273,7 @@ class Apresentacao(QDialog):
             self._anim = anim
         for k, b in enumerate(self.barras):
             cor = tema.DESTAQUE if k <= i else tema.LINHA
-            b.setStyleSheet(f"background:{cor}; border-radius:2px;")
+            b.setStyleSheet(f"background:{cor};")
         if not self.so_carrossel and i == self.pilha.count() - 1:
             self._verificar()
         self._atualizar_botoes()
@@ -281,7 +284,7 @@ class Apresentacao(QDialog):
         self.voltar.setVisible(i > 0)
         no_carrossel = self.so_carrossel or i < getattr(self, "_fim_carrossel", 99)
         self.pular.setVisible(no_carrossel and not ultimo)
-        self.proximo.setText("Começar" if ultimo else "Próximo")
+        self.proximo.setText("INICIAR SISTEMA ▸" if ultimo else "PRÓXIMO ▸")
         if not self.so_carrossel and i == 4:  # página do nome: obrigatório
             self.proximo.setEnabled(bool(self.campo_nome.text().strip()))
         else:
@@ -297,6 +300,13 @@ class Apresentacao(QDialog):
             self.accept()
         else:
             self.ir(self.pilha.currentIndex() + 1)
+
+    def paintEvent(self, ev):
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QPainter
+        p = QPainter(self)
+        pintar_fundo(p, QRectF(self.rect()))
+        p.end()
 
     def keyPressEvent(self, ev):
         if ev.key() == Qt.Key_Right and self.proximo.isEnabled():
@@ -343,8 +353,9 @@ class Apresentacao(QDialog):
         dicas = []
         for chave, l in self.checks.items():
             ok = r.get(chave)
-            icone = f'<span style="color:{tema.OK}">✓</span>' if ok else f'<span style="color:{tema.OURO}">!</span>'
-            l.setText(f"{icone}&nbsp; {l.property('texto')}")
+            icone = (f'<span style="color:{tema.OK}">[ OK ]</span>' if ok
+                     else f'<span style="color:{tema.PERIGO}">[ !! ]</span>')
+            l.setText(f"{icone}&nbsp; {l.property('texto').upper()}")
         if not r.get("ollama"):
             dicas.append("Instale e abra o Ollama (ollama.com). Sem ele, só os comandos rápidos funcionam.")
         elif not r.get("modelo"):

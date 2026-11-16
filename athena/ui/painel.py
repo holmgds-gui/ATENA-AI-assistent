@@ -2,100 +2,187 @@
 from __future__ import annotations
 
 import threading
+import time
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout,
                                QHBoxLayout, QLabel,
                                QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox,
-                               QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
+                               QStackedWidget, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
 
 from . import tema
 from .componentes import ListaPermissoes, SeletorPersonalidade, SeletorVoz
+from .hud import BotaoNav, FundoHud, Indicador, PainelHud, rotulo_secao
 
 
-def _rolavel(widget: QWidget) -> QScrollArea:
+def _rolavel(widget: QWidget, titulo: str = "") -> QScrollArea:
     area = QScrollArea()
     area.setWidgetResizable(True)
     area.setFrameShape(QFrame.NoFrame)
     area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
     caixa = QWidget()
+    caixa.setObjectName("transparente")
     lay = QVBoxLayout(caixa)
-    lay.setContentsMargins(22, 16, 22, 16)
-    lay.addWidget(widget)
+    lay.setContentsMargins(4, 4, 10, 12)
+    moldura = PainelHud(titulo)
+    moldura.lay.setContentsMargins(18, 30 if titulo else 16, 18, 16)
+    moldura.lay.addWidget(widget)
+    lay.addWidget(moldura)
     lay.addStretch(1)
     area.setWidget(caixa)
     return area
 
 
 def _secao(texto):
-    l = QLabel(texto.upper())
-    l.setObjectName("secao")
-    return l
+    return rotulo_secao(texto)
 
 
-class Painel(QWidget):
+PAGINAS = [("01", "Conversa"), ("02", "Sistema"), ("03", "Personalidade"), ("04", "Permissões"),
+           ("05", "Aparência"), ("06", "Voz"), ("07", "Cérebro"), ("08", "Memória"), ("09", "Sobre")]
+
+
+class Painel(FundoHud):
     salvo = Signal()
     cores_mudaram = Signal(str, str)
     rever_apresentacao = Signal()
     enviar_texto = Signal(str)
     _modelos_prontos = Signal(list)
+    _status_cerebro = Signal(bool)
 
     def __init__(self, config, cerebro=None):
         super().__init__()
         self.config = config
         self.cerebro = cerebro
         self.setObjectName("janela")
-        self.setWindowTitle(f"{config.nome_ia} — Configurações")
-        self.resize(820, 720)
+        self.setWindowTitle(f"{config.nome_ia} — Painel de controle")
+        self.resize(1080, 760)
+        self.setMinimumSize(900, 620)
 
         raiz = QVBoxLayout(self)
-        raiz.setContentsMargins(0, 12, 0, 0)
+        raiz.setContentsMargins(0, 0, 0, 0)
         raiz.setSpacing(0)
+
+        # ---- cabeçalho
         cab = QHBoxLayout()
-        cab.setContentsMargins(22, 4, 22, 6)
-        titulo = QLabel(f'{config.nome_ia}<span style="color:{tema.DESTAQUE}">.</span>')
+        cab.setContentsMargins(18, 12, 22, 10)
+        cab.setSpacing(12)
+        from .holograma import Orbe
+        self.mini = Orbe(58, *tema.cores_da_config(config))
+        cab.addWidget(self.mini)
+        nomes = QVBoxLayout()
+        nomes.setSpacing(0)
+        titulo = QLabel(f'{config.nome_ia.upper()}<span style="color:{tema.DESTAQUE}">_</span>')
         titulo.setObjectName("titulo")
-        cab.addWidget(titulo)
+        from .. import __version__
+        sub = QLabel(f"PAINEL DE CONTROLE  //  v{__version__}")
+        sub.setObjectName("secao")
+        nomes.addWidget(titulo)
+        nomes.addWidget(sub)
+        cab.addLayout(nomes)
         cab.addStretch(1)
+        self.ind_cerebro = Indicador("Cérebro: verificando")
+        self.ind_cerebro.set(None, "Cérebro: verificando")
+        self.ind_usuario = Indicador("")
+        self.ind_usuario.set(True, f"Operador: {config.nome_usuario}")
+        cab.addWidget(self.ind_usuario)
+        cab.addWidget(self.ind_cerebro)
+        self.relogio = QLabel("")
+        self.relogio.setStyleSheet(f"font-family:{tema.FONTE_MONO}; font-size:20px; color:{tema.DESTAQUE};"
+                                   f"padding-left:10px;")
+        cab.addWidget(self.relogio)
         raiz.addLayout(cab)
+        linha = QFrame()
+        linha.setFixedHeight(1)
+        linha.setStyleSheet(f"background: {tema.rgba(tema.DESTAQUE, 0.35)};")
+        raiz.addWidget(linha)
 
-        self.abas = QTabWidget()
-        raiz.addWidget(self.abas, 1)
-        self.abas.addTab(self._aba_conversa(), "Conversa")
-        self.abas.addTab(self._aba_personalidade(), "Personalidade")
-        self.abas.addTab(self._aba_permissoes(), "Permissões")
-        self.abas.addTab(self._aba_aparencia(), "Aparência")
-        self.abas.addTab(self._aba_voz_ouvido(), "Voz")
-        self.abas.addTab(self._aba_cerebro(), "Cérebro")
-        self.abas.addTab(self._aba_memoria(), "Memória")
-        self.abas.addTab(self._aba_sobre(), "Sobre")
-
-        rod = QHBoxLayout()
-        rod.setContentsMargins(22, 10, 22, 16)
+        # ---- corpo: menu lateral + páginas
+        corpo = QHBoxLayout()
+        corpo.setContentsMargins(0, 10, 14, 0)
+        corpo.setSpacing(10)
+        lateral = QVBoxLayout()
+        lateral.setContentsMargins(4, 4, 0, 14)
+        lateral.setSpacing(2)
+        self.botoes_nav = []
+        for i, (cod, nome) in enumerate(PAGINAS):
+            b = BotaoNav(cod, nome)
+            b.setFixedWidth(200)
+            b.clicado.connect(lambda i=i: self.ir_para(i))
+            lateral.addWidget(b)
+            self.botoes_nav.append(b)
+        lateral.addStretch(1)
         self.aviso = QLabel("")
-        self.aviso.setObjectName("apagado")
-        rod.addWidget(self.aviso, 1)
-        salvar = QPushButton("Salvar")
+        self.aviso.setObjectName("secao")
+        self.aviso.setContentsMargins(12, 0, 0, 4)
+        lateral.addWidget(self.aviso)
+        salvar = QPushButton("SALVAR  ▸")
         salvar.setObjectName("primario")
+        salvar.setMinimumHeight(42)
         salvar.clicked.connect(self._salvar)
-        rod.addWidget(salvar)
-        raiz.addLayout(rod)
+        cont = QHBoxLayout()
+        cont.setContentsMargins(10, 0, 0, 0)
+        cont.addWidget(salvar)
+        lateral.addLayout(cont)
+        corpo.addLayout(lateral)
+
+        self.paginas = QStackedWidget()
+        from .aba_sistema import AbaSistema
+        self.aba_sistema = AbaSistema()
+        for w in (self._aba_conversa(), self.aba_sistema, self._aba_personalidade(), self._aba_permissoes(),
+                  self._aba_aparencia(), self._aba_voz_ouvido(), self._aba_cerebro(), self._aba_memoria(),
+                  self._aba_sobre()):
+            self.paginas.addWidget(w)
+        corpo.addWidget(self.paginas, 1)
+        raiz.addLayout(corpo, 1)
+        self.ir_para(0)
+
+        from PySide6.QtCore import QTimer
+        self._relogio_timer = QTimer(self, timeout=self._tique)
+        self._relogio_timer.start(1000)
+        self._tique()
+        self._status_cerebro.connect(lambda ok: self.ind_cerebro.set(ok, "Cérebro online" if ok else "Cérebro offline"))
+        self.mini.set_estado("dormindo")
+
+    def ir_para(self, i: int):
+        self.paginas.setCurrentIndex(i)
+        for k, b in enumerate(self.botoes_nav):
+            b.ativo = k == i
+            b.update()
+        if PAGINAS[i][1] == "Sistema" and self.isVisible():
+            self.aba_sistema.iniciar()
+        else:
+            self.aba_sistema.parar()
+
+    def _tique(self):
+        import datetime as _dt
+        self.relogio.setText(_dt.datetime.now().strftime("%H:%M:%S"))
+        if self.cerebro is not None and int(time.time()) % 10 == 0:
+            threading.Thread(target=lambda: self._status_cerebro.emit(self.cerebro.esta_online()), daemon=True).start()
+
+    def hideEvent(self, ev):
+        self.aba_sistema.parar()
+        super().hideEvent(ev)
 
     # ------------------------------------------------------------------ abas
     def _aba_conversa(self):
         w = QWidget()
+        w.setObjectName("transparente")
         lay = QVBoxLayout(w)
-        lay.setContentsMargins(22, 14, 22, 8)
+        lay.setContentsMargins(4, 4, 10, 14)
+        moldura = PainelHud("Canal de comunicação")
         self.historico = QTextBrowser()
-        self.historico.setStyleSheet(f"background:{tema.SUPERFICIE}; border:1px solid {tema.LINHA};"
-                                     f"border-radius:12px; padding:8px;")
-        lay.addWidget(self.historico, 1)
+        self.historico.setStyleSheet("background: transparent; border: none; padding: 4px;")
+        moldura.lay.addWidget(self.historico)
+        lay.addWidget(moldura, 1)
         h = QHBoxLayout()
         self.entrada = QLineEdit()
-        self.entrada.setPlaceholderText("Escreva um pedido pra ATHENA e aperte Enter…")
+        self.entrada.setPlaceholderText("› digite um comando e aperte Enter…")
+        self.entrada.setMinimumHeight(42)
         self.entrada.returnPressed.connect(self._enviar)
         h.addWidget(self.entrada, 1)
-        b = QPushButton("Enviar")
+        b = QPushButton("ENVIAR ▸")
+        b.setObjectName("primario")
+        b.setMinimumHeight(42)
         b.clicked.connect(self._enviar)
         h.addWidget(b)
         lay.addLayout(h)
@@ -119,11 +206,11 @@ class Painel(QWidget):
         self.regras = QPlainTextEdit(self.config.personalidade.get("regras_extras", ""))
         self.regras.setMinimumHeight(110)
         lay.addWidget(self.regras)
-        return _rolavel(w)
+        return _rolavel(w, "Identidade e personalidade")
 
     def _aba_permissoes(self):
         self.sel_perm = ListaPermissoes(self.config.get("permissoes", {}), self.config.get("seguranca.autonomia"))
-        return _rolavel(self.sel_perm)
+        return _rolavel(self.sel_perm, "Permissões no computador")
 
     def _aba_aparencia(self):
         from .holograma import PALETAS, Orbe
@@ -133,7 +220,7 @@ class Painel(QWidget):
         lay.setSpacing(12)
         self.paleta = self.config.get("interface.paleta", "dourado")
         self.cor_custom = self.config.get("interface.cor_personalizada") or "#FF3DCB"
-        self.preview = Orbe(200, *tema.cores_da_config(self.config))
+        self.preview = Orbe(230, *tema.cores_da_config(self.config))
         self.preview.set_estado("pensando")
         lay.addWidget(self.preview, 0, Qt.AlignHCenter)
         lay.addWidget(_secao("Cor do holograma"))
@@ -166,7 +253,7 @@ class Painel(QWidget):
         nota.setObjectName("apagado")
         nota.setWordWrap(True)
         lay.addWidget(nota)
-        return _rolavel(w)
+        return _rolavel(w, "Aparência do holograma")
 
     def _pintar_botoes_cor(self):
         from PySide6.QtCore import QSize
@@ -205,6 +292,7 @@ class Painel(QWidget):
         self._pintar_botoes_cor()
         prim, sec = self._cores_escolhidas()
         self.preview.set_cores(prim, sec)
+        self.mini.set_cores(prim, sec)
         self.cores_mudaram.emit(prim, sec)
 
     def _cores_escolhidas(self):
@@ -222,6 +310,40 @@ class Painel(QWidget):
         lay.addWidget(_secao("Voz"))
         self.sel_voz = SeletorVoz(self.config)
         lay.addWidget(self.sel_voz)
+
+        lay.addWidget(_secao("Palmas"))
+        fp = QFormLayout()
+        self.palmas_on = QCheckBox("Bater palmas chama a ATHENA")
+        self.palmas_on.setChecked(bool(self.config.get("ativacao.palmas", True)))
+        fp.addRow("", self.palmas_on)
+        self.num_palmas = QComboBox()
+        for n in (1, 2, 3):
+            self.num_palmas.addItem(f"{n} palma{'s' if n > 1 else ''}", n)
+        self.num_palmas.setCurrentIndex(max(0, self.num_palmas.findData(int(self.config.get("ativacao.num_palmas", 2)))))
+        fp.addRow("Quantidade", self.num_palmas)
+        self.exig_palmas = QDoubleSpinBox()
+        self.exig_palmas.setRange(0.5, 4.0)
+        self.exig_palmas.setSingleStep(0.1)
+        self.exig_palmas.setValue(float(self.config.get("ativacao.exigencia_palmas", 1.0)))
+        self.exig_palmas.setToolTip("Se ela acordar sozinha com barulhos, aumente. Se não reconhecer suas palmas, diminua.")
+        fp.addRow("Força da palma", self.exig_palmas)
+        r = self.config.get("rotina_palmas", {}) or {}
+        self.rot_frase = QLineEdit(r.get("frase", ""))
+        self.rot_frase.setPlaceholderText("Bem-vindo de volta, {nome}. Preparando tudo.")
+        fp.addRow("Frase", self.rot_frase)
+        self.rot_apps = QLineEdit(", ".join(r.get("apps") or []))
+        self.rot_apps.setPlaceholderText("spotify, discord, visual studio code")
+        fp.addRow("Abrir apps", self.rot_apps)
+        self.rot_sites = QLineEdit(", ".join(r.get("sites") or []))
+        self.rot_sites.setPlaceholderText("youtube, github.com")
+        fp.addRow("Abrir sites", self.rot_sites)
+        self.rot_musica = QLineEdit(r.get("musica", ""))
+        self.rot_musica.setPlaceholderText("ex: back in black ac dc  (toca no YouTube)")
+        fp.addRow("Tocar música", self.rot_musica)
+        self.rot_ouvir = QCheckBox("Depois da rotina, esperar meu pedido")
+        self.rot_ouvir.setChecked(bool(r.get("ouvir_depois", True)))
+        fp.addRow("", self.rot_ouvir)
+        lay.addLayout(fp)
 
         lay.addWidget(_secao("Ativação"))
         form = QFormLayout()
@@ -250,7 +372,7 @@ class Painel(QWidget):
         lay.addLayout(form)
         lay.addWidget(QLabel("Mudanças no reconhecimento de fala valem depois de reiniciar a ATHENA.",
                              objectName="apagado"))
-        return _rolavel(w)
+        return _rolavel(w, "Voz e ativação")
 
     def _aba_cerebro(self):
         w = QWidget()
@@ -282,7 +404,7 @@ class Painel(QWidget):
         lay.addWidget(dica)
         self._modelos_prontos.connect(self._preencher_modelos)
         threading.Thread(target=self._buscar_modelos, daemon=True).start()
-        return _rolavel(w)
+        return _rolavel(w, "Cérebro (IA local)")
 
     def _aba_memoria(self):
         w = QWidget()
@@ -291,25 +413,25 @@ class Painel(QWidget):
         lay.addWidget(QLabel("Coisas que a ATHENA guardou sobre você. Peça “lembra que…” pra adicionar.",
                              objectName="apagado", wordWrap=True))
         self.lista_mem = QListWidget()
-        self.lista_mem.setStyleSheet(f"background:{tema.SUPERFICIE}; border:1px solid {tema.LINHA};"
-                                     f"border-radius:12px; padding:6px;")
+
         self.lista_mem.setMinimumHeight(320)
         lay.addWidget(self.lista_mem)
         h = QHBoxLayout()
-        apagar = QPushButton("Apagar selecionado")
+        apagar = QPushButton("APAGAR SELECIONADO")
         apagar.clicked.connect(self._apagar_memoria)
         h.addWidget(apagar)
         h.addStretch(1)
         lay.addLayout(h)
         self._carregar_memoria()
-        return _rolavel(w)
+        return _rolavel(w, "Memória de longo prazo")
 
     def _aba_sobre(self):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(12)
-        t = QLabel(f"<b>{self.config.nome_ia}</b><br>Assistente Tecnológica de Execução e Navegação Artificial")
+        from .. import __version__
+        t = QLabel(f"<b>{self.config.nome_ia}</b>  v{__version__}<br>Assistente Tecnológica de Execução e Navegação Artificial")
         t.setWordWrap(True)
         lay.addWidget(t)
         dicas = QLabel("• Diga “Atena” e o pedido, numa frase só.<br>"
@@ -320,7 +442,7 @@ class Painel(QWidget):
         dicas.setObjectName("subtitulo")
         dicas.setWordWrap(True)
         lay.addWidget(dicas)
-        rever = QPushButton("Rever apresentação")
+        rever = QPushButton("REVER APRESENTAÇÃO")
         rever.clicked.connect(self.rever_apresentacao.emit)
         lay.addWidget(rever, 0, Qt.AlignLeft)
         from ..config import PASTA_USUARIO
@@ -328,15 +450,20 @@ class Painel(QWidget):
         local.setObjectName("apagado")
         local.setTextInteractionFlags(Qt.TextSelectableByMouse)
         lay.addWidget(local)
-        return _rolavel(w)
+        return _rolavel(w, "Sobre")
 
     # ------------------------------------------------------------------ ações
     def adicionar_mensagem(self, de_quem: str, texto: str):
+        import datetime as _dt
+        hora = _dt.datetime.now().strftime("%H:%M:%S")
+        mono = "font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px"
         if de_quem == "voce":
-            html = f'<p style="margin:6px 0"><span style="color:{tema.APAGADO}">Você</span><br>{texto}</p>'
-        else:
-            html = (f'<p style="margin:6px 0"><span style="color:{tema.DESTAQUE}">{self.config.nome_ia}</span>'
+            quem = self.config.nome_usuario.upper()
+            html = (f'<p style="margin:8px 0"><span style="{mono}; color:{tema.APAGADO}">[{hora}] {quem} ›</span>'
                     f'<br>{texto}</p>')
+        else:
+            html = (f'<p style="margin:8px 0"><span style="{mono}; color:{tema.DESTAQUE}">[{hora}] '
+                    f'{self.config.nome_ia.upper()} ›</span><br><span style="color:#FFFFFF">{texto}</span></p>')
         self.historico.append(html)
 
     def _enviar(self):
@@ -373,6 +500,8 @@ class Painel(QWidget):
         self.config.recarregar()
         self._carregar_memoria()
         super().showEvent(ev)
+        if PAGINAS[self.paginas.currentIndex()][1] == "Sistema":
+            self.aba_sistema.iniciar()
 
     def _salvar(self):
         pers = self.sel_pers.valores()
@@ -387,7 +516,14 @@ class Painel(QWidget):
             **self.sel_perm.valores(),
             **self.sel_voz.valores(),
             "ativacao": {"palavras": palavras, "atalho": self.atalho.text().strip() or "ctrl+alt+a",
-                         "conversa_continua": self.continua.isChecked()},
+                         "conversa_continua": self.continua.isChecked(), "palmas": self.palmas_on.isChecked(),
+                         "num_palmas": self.num_palmas.currentData(),
+                         "exigencia_palmas": round(self.exig_palmas.value(), 2)},
+            "rotina_palmas": {
+                "frase": self.rot_frase.text().strip(),
+                "apps": [a.strip() for a in self.rot_apps.text().split(",") if a.strip()],
+                "sites": [a.strip() for a in self.rot_sites.text().split(",") if a.strip()],
+                "musica": self.rot_musica.text().strip(), "ouvir_depois": self.rot_ouvir.isChecked()},
             "ouvido": {"sensibilidade": round(self.sens.value(), 2), "modelo_whisper": self.whisper.currentData()},
             "cerebro": {"modelo": self.modelo.currentText().strip(), "url": self.url.text().strip(),
                         "temperatura": round(self.temp.value(), 2), "max_historico": self.hist.value()},
@@ -395,5 +531,5 @@ class Painel(QWidget):
             "interface": {"paleta": self.paleta, "cor_personalizada": self.cor_custom,
                           "orbe_tamanho": self.tam_orbe.value(), "legenda": self.legenda.isChecked()},
         })
-        self.aviso.setText("Salvo ✓")
+        self.aviso.setText("// CONFIGURAÇÃO SALVA ✓")
         self.salvo.emit()

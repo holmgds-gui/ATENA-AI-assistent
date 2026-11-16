@@ -17,6 +17,7 @@ import time
 
 import numpy as np
 
+from .palmas import DetectorPalmas
 from .sistema import normalizar
 
 TAXA = 16000           # Hz — o que Vosk e Whisper esperam
@@ -36,6 +37,10 @@ class Ouvido:
         self._whisper = None
         self._whisper_pronto = threading.Event()
         self.nivel = 0.0                        # 0..1 — usado pelo orbe pra pulsar com a sua voz
+        self.ultima_ativacao = ""               # "voz" ou "palmas"
+        self._palmas = DetectorPalmas()
+        self._esperando = False                 # só procura palmas enquanto espera ativação
+        self._bateu_palmas = False
 
     # ------------------------------------------------------------------ inicialização
     def iniciar(self) -> None:
@@ -101,6 +106,30 @@ class Ouvido:
             self._stream.stop()
             self._stream.close()
 
+    # ------------------------------------------------------------------ leitura
+    def _ler(self, timeout: float = 0.2) -> bytes | None:
+        """Pega o próximo bloco do microfone e, se estiver esperando ativação, procura palmas."""
+        try:
+            bloco = self._fila.get(timeout=timeout)
+        except queue.Empty:
+            return None
+        if self._esperando and self.config.get("ativacao.palmas", True):
+            self._palmas.quantidade = int(self.config.get("ativacao.num_palmas", 2))
+            self._palmas.sensibilidade = float(self.config.get("ativacao.exigencia_palmas", 1.0))
+            if self._palmas.alimentar(bloco):
+                self._bateu_palmas = True
+        return bloco
+
+    def _checar_palmas(self) -> bool:
+        if self._bateu_palmas:
+            self._bateu_palmas = False
+            self.ultima_ativacao = "palmas"
+            self._palmas.reiniciar()
+            if self._vosk:
+                self._vosk.Reset()
+            return True
+        return False
+
     # ------------------------------------------------------------------ utilidades
     @staticmethod
     def _rms(bloco: bytes) -> float:
@@ -146,18 +175,31 @@ class Ouvido:
         return False, ""
 
     def esperar_ativacao(self, cancelar: threading.Event) -> tuple[bool, str]:
-        """Bloqueia até ouvir 'Atena' (ou `cancelar` ser ligado). Retorna (ativou, comando_junto)."""
-        if self._vosk is not None:
-            return self._esperar_com_vosk(cancelar)
-        return self._esperar_com_whisper(cancelar)
+        """Bloqueia até ouvir 'Atena' ou palmas (ou `cancelar` ser ligado). Retorna (ativou, comando_junto).
+        Depois, `ultima_ativacao` diz se foi "voz" ou "palmas"."""
+        self.ultima_ativacao = ""
+        self._bateu_palmas = False
+        self._palmas.reiniciar()
+        self._esperando = True
+        try:
+            if self._vosk is not None:
+                ativou, comando = self._esperar_com_vosk(cancelar)
+            else:
+                ativou, comando = self._esperar_com_whisper(cancelar)
+        finally:
+            self._esperando = False
+        if ativou and not self.ultima_ativacao:
+            self.ultima_ativacao = "voz"
+        return ativou, comando
 
     def _esperar_com_vosk(self, cancelar: threading.Event) -> tuple[bool, str]:
         pre = collections.deque(maxlen=int(BLOCOS_POR_SEG * 0.5))  # meio segundo antes da fala
         fala: list[bytes] = []
         while not cancelar.is_set():
-            try:
-                bloco = self._fila.get(timeout=0.2)
-            except queue.Empty:
+            bloco = self._ler()
+            if self._checar_palmas():
+                return True, ""
+            if bloco is None:
                 continue
             rms = self._rms(bloco)
             self._atualiza_nivel(rms)
@@ -189,6 +231,8 @@ class Ouvido:
     def _esperar_com_whisper(self, cancelar: threading.Event) -> tuple[bool, str]:
         while not cancelar.is_set():
             audio = self.gravar_fala(espera_max=None, cancelar=cancelar, max_seg=6)
+            if self._checar_palmas():
+                return True, ""
             if audio is None:
                 continue
             frase = self.transcrever(audio)
@@ -203,9 +247,8 @@ class Ouvido:
         limite = int(silencio * BLOCOS_POR_SEG)
         inicio = time.time()
         while time.time() - inicio < 10:
-            try:
-                b = self._fila.get(timeout=0.3)
-            except queue.Empty:
+            b = self._ler(0.3)
+            if b is None:
                 break
             blocos.append(b)
             rms = self._rms(b)
@@ -228,10 +271,9 @@ class Ouvido:
         while True:
             if cancelar is not None and cancelar.is_set():
                 return None
-            try:
-                bloco = self._fila.get(timeout=0.2)
-            except queue.Empty:
-                bloco = None
+            bloco = self._ler()
+            if self._esperando and self._bateu_palmas:
+                return None
             if bloco is None:
                 if not fala and espera_max is not None and time.time() - inicio > espera_max:
                     return None

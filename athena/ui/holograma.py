@@ -55,6 +55,7 @@ class Orbe(QWidget):
         self._giro = 0.0
         self._ultimo = time.time()
         self._ondas: list[float] = []
+        self._mat_t0 = None                                  # animação de "materializar"
         self.set_cores(primaria, secundaria)
         self._cor_atual = QColor(self._prim)
 
@@ -110,6 +111,11 @@ class Orbe(QWidget):
         fps = 24 if estado in ("dormindo", "mudo") else self.FPS
         self._timer.setInterval(int(1000 / fps))
 
+    def materializar(self) -> None:
+        """Efeito de surgir: o holograma se monta do centro pra fora."""
+        self._mat_t0 = time.time()
+        self._ondas += [0.0, -0.25]
+
     # ------------------------------------------------------------------ desenho
     def _cor_alvo(self) -> QColor:
         if self.estado == "erro":
@@ -136,7 +142,13 @@ class Orbe(QWidget):
         t = agora - self._t0
         w = self.width()
         cx = cy = w / 2
-        R = w * 0.27
+        mat = 1.0
+        if self._mat_t0 is not None:
+            m = min(1.0, (agora - self._mat_t0) / 0.9)
+            mat = 1 - (1 - m) ** 3
+            if m >= 1:
+                self._mat_t0 = None
+        R = w * 0.27 * (0.35 + 0.65 * mat)
 
         est = self.estado
         nivel = self.nivel_externo() if (self.nivel_externo and est == "ouvindo") else 0.0
@@ -305,7 +317,7 @@ class Orbe(QWidget):
         vivas = []
         for o in self._ondas:
             o += dt * 1.1
-            if o < 1:
+            if 0 <= o < 1:
                 vivas.append(o)
                 p.setPen(QPen(self._com_alpha(cor, 0.6 * (1 - o)), 1.3))
                 rr = R * (0.4 + o * 1.4)
@@ -334,5 +346,6 @@ class Orbe(QWidget):
         p.end()
 
         tela = QPainter(self)
+        tela.setOpacity(mat)
         tela.drawImage(0, 0, img)
         tela.end()

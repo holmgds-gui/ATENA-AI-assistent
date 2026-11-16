@@ -166,12 +166,18 @@ class Assistente:
             ativou, comando = self.ouvido.esperar_ativacao(self._interromper)
             if not ativou and not self._chamado_manual:
                 return  # chegou texto ou foi encerrado
+        if self._chamado_manual:
+            self.evento("acao", "ativou")
         self._chamado_manual = False
 
-        # 3) se você só disse "Atena", ela responde e escuta
+        # 3) se você só disse "Atena" (ou bateu palmas), ela responde e escuta
         if not comando:
+            self.evento("acao", "ativou")
+            if self.ouvido.ultima_ativacao == "palmas":
+                if not self.executar_rotina_palmas():
+                    self._estado("dormindo")
+                    return
             self._estado("ouvindo")
-            self.evento("acao", "bip")
             comando = self._ouvir_comando(espera=7)
             if not comando:
                 self._estado("dormindo")
@@ -187,6 +193,35 @@ class Assistente:
                 break
             self.processar(comando)
         self._estado("dormindo")
+
+    def executar_rotina_palmas(self) -> bool:
+        """Palmas: fala a frase, abre apps/sites, toca música. Devolve se deve ouvir um pedido depois."""
+        from . import sistema
+        r = self.config.get("rotina_palmas", {}) or {}
+        nome = self.config.nome_usuario
+        apps, sites, musica = r.get("apps") or [], r.get("sites") or [], (r.get("musica") or "").strip()
+        tem_acoes = bool(apps or sites or musica)
+        frase = (r.get("frase") or "").replace("{nome}", nome).strip()
+        if not frase:
+            frase = random.choice([f"Às ordens, {nome}.", "Pois não?", f"Sistemas prontos, {nome}."])
+        elif not tem_acoes and "preparando" in frase.lower():
+            frase = random.choice([f"Às ordens, {nome}.", "Pois não?", f"Estou aqui, {nome}.",
+                                   "Online. O que manda?", f"Sistemas prontos, {nome}."])
+        # abre tudo em paralelo enquanto ela fala
+        def abrir():
+            for app in apps:
+                if self.config.permitido("apps"):
+                    ok, info = sistema.abrir_app(str(app), self.config.apelidos_apps)
+                    self._log(f"[rotina] {info}")
+            for site in sites:
+                if self.config.permitido("navegador"):
+                    sistema.abrir_site(str(site), self.config.apelidos_sites)
+            if musica and self.config.permitido("navegador"):
+                sistema.tocar_no_youtube(musica)
+        if tem_acoes:
+            threading.Thread(target=abrir, daemon=True).start()
+        self.falar(frase)
+        return bool(r.get("ouvir_depois", True)) or not tem_acoes
 
     def _ouvir_comando(self, espera: float) -> str:
         audio = self.ouvido.gravar_fala(espera_max=espera, cancelar=self._interromper)
