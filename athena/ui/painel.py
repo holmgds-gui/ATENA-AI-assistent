@@ -218,8 +218,8 @@ class Painel(FundoHud):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(12)
-        self.paleta = self.config.get("interface.paleta", "dourado")
-        self.cor_custom = self.config.get("interface.cor_personalizada") or "#FF3DCB"
+        self.paleta = self.config.get("interface.paleta", "azul")
+        self.cor_custom = self.config.get("interface.cor_personalizada") or "#2E9BFF"
         self.preview = Orbe(230, *tema.cores_da_config(self.config))
         self.preview.set_estado("pensando")
         lay.addWidget(self.preview, 0, Qt.AlignHCenter)

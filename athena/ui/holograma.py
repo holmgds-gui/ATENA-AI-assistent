@@ -14,13 +14,14 @@ from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QRadialG
 from PySide6.QtWidgets import QWidget
 
 PALETAS = {
-    "dourado": ("Dourado holográfico", "#FFA62B", "#FFE2A0"),
+    "azul": ("Azul elétrico", "#2E9BFF", "#9FE8FF"),
+    "azul_profundo": ("Azul profundo", "#3A63FF", "#7FC8FF"),
     "ciano": ("Ciano", "#3DDCFF", "#B5F4FF"),
-    "dourado_ciano": ("Dourado + ciano", "#FFA62B", "#3DDCFF"),
+    "azul_gelo": ("Azul gelo", "#8FD3FF", "#E4F6FF"),
+    "dourado": ("Dourado holográfico", "#FFA62B", "#FFE2A0"),
     "vermelho": ("Vermelho", "#FF4A4A", "#FFC0A8"),
     "verde": ("Verde matriz", "#3BFF8A", "#C2FFDA"),
     "roxo": ("Roxo", "#9F7BFF", "#E2D6FF"),
-    "branco": ("Branco gelo", "#DCE8F5", "#7FD6FF"),
 }
 
 
@@ -44,7 +45,7 @@ class Orbe(QWidget):
 
     FPS = 40
 
-    def __init__(self, tamanho: int = 170, primaria="#FFA62B", secundaria="#FFE2A0", parent=None):
+    def __init__(self, tamanho: int = 170, primaria="#2E9BFF", secundaria="#9FE8FF", parent=None):
         super().__init__(parent)
         self.setFixedSize(tamanho, tamanho)
         self.setAttribute(Qt.WA_TranslucentBackground)

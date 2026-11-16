@@ -45,7 +45,7 @@ PADRAO_CONFIG = {
     "rotina_palmas": {"frase": "Bem-vindo de volta, {nome}. Preparando tudo.", "apps": [], "sites": [],
                       "musica": "", "ouvir_depois": True},
     "atalhos_rapidos": True,
-    "interface": {"modo": "invisivel", "segundos_ate_sumir": 6, "paleta": "dourado", "cor_personalizada": None, "orbe_tamanho": 190, "legenda": True},
+    "interface": {"modo": "invisivel", "segundos_ate_sumir": 6, "paleta": "azul", "cor_personalizada": None, "orbe_tamanho": 190, "legenda": True},
     "permissoes": {
         "apps": True, "fechar_apps": True, "navegador": True, "internet": True, "teclado": True,
         "midia_volume": True, "energia": True, "notas_timers": True, "memoria": True,

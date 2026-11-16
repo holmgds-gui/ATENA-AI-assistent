@@ -11,8 +11,8 @@ SUPERFICIE_2 = "#0F1823"
 LINHA = "#1C2A3A"
 TEXTO = "#E6EEF7"
 APAGADO = "#7E8FA3"
-DESTAQUE = "#FFA62B"      # muda com a paleta (aplicar_paleta)
-OURO = "#FFC861"
+DESTAQUE = "#2E9BFF"      # muda com a paleta (aplicar_paleta)
+ALERTA = "#FF6B8B"       # aviso (sem amarelo)
 PERIGO = "#FF4A5C"
 OK = "#3BE8A0"
 
@@ -48,11 +48,11 @@ def cor(hex_cor: str, alpha: float = 1.0) -> QColor:
 def cores_da_config(config) -> tuple[str, str]:
     """(primária, secundária) da paleta escolhida."""
     from .holograma import PALETAS
-    nome = config.get("interface.paleta", "dourado")
+    nome = config.get("interface.paleta", "azul")
     if nome == "personalizada":
-        prim = config.get("interface.cor_personalizada") or "#FFA62B"
+        prim = config.get("interface.cor_personalizada") or "#2E9BFF"
         return prim, _mix(prim, "#FFFFFF", 0.6)
-    _, prim, sec = PALETAS.get(nome, PALETAS["dourado"])
+    _, prim, sec = PALETAS.get(nome, PALETAS["azul"])
     return prim, sec
 
 

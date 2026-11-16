@@ -16,7 +16,7 @@ class JanelaOrbe(QWidget):
     alternar_mudo = Signal()
     sair = Signal()
 
-    def __init__(self, tamanho: int = 170, legenda: bool = True, primaria="#FFA62B", secundaria="#FFE2A0"):
+    def __init__(self, tamanho: int = 170, legenda: bool = True, primaria="#2E9BFF", secundaria="#9FE8FF"):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.orbe = Orbe(tamanho, primaria=primaria, secundaria=secundaria)

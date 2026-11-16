@@ -49,7 +49,7 @@ atalhos_rapidos: true           # comandos simples (abrir app, horas, volume) se
 interface:
   modo: invisivel               # invisivel = holograma só aparece quando chamada | sempre = fica na tela
   segundos_ate_sumir: 6
-  paleta: dourado               # dourado | ciano | dourado_ciano | vermelho | verde | roxo | branco | personalizada
+  paleta: azul                  # azul | azul_profundo | ciano | azul_gelo | dourado | vermelho | verde | roxo | personalizada
   cor_personalizada: null       # ex: "#FF00AA" (usada quando paleta = personalizada)
   orbe_tamanho: 190
   legenda: true                 # mostra o que você falou e o que ela respondeu embaixo do orbe

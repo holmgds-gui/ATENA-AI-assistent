@@ -55,7 +55,7 @@ Dá pra trocar depois em **Configurações → Cérebro**.
 
 ### O holograma
 
-Globo de malha 3D + anéis de giroscópio + rede neural + partículas. Esperando: gira devagar · ouvindo: pulsa com a sua voz · pensando: pulsos correm pela rede · falando: a malha ondula e solta ondas · cinza: microfone desligado · vermelho: erro. Cor padrão dourada; troque em **Aparência** (7 paletas + personalizada).
+Globo de malha 3D + anéis de giroscópio + rede neural + partículas. Esperando: gira devagar · ouvindo: pulsa com a sua voz · pensando: pulsos correm pela rede · falando: a malha ondula e solta ondas · cinza: microfone desligado · vermelho: erro. Cor padrão azul elétrico; troque em **Aparência** (8 paletas + personalizada).
 
 ## Monitor do PC (aba SISTEMA)
 

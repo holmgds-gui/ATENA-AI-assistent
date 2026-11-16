@@ -191,7 +191,7 @@ class Medidor(QWidget):
         if self.perigo is not None and self.valor >= self.perigo:
             return tema.PERIGO
         if self.alerta is not None and self.valor >= self.alerta:
-            return tema.OURO if tema.DESTAQUE != tema.OURO else "#FF7A2B"
+            return tema.ALERTA
         return tema.DESTAQUE
 
     def paintEvent(self, _):
