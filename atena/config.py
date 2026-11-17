@@ -1,4 +1,4 @@
-"""Carrega e salva as configurações da ATHENA (arquivos .yaml na pasta config/)."""
+"""Carrega e salva as configurações da ATENA (arquivos .yaml na pasta config/)."""
 from __future__ import annotations
 
 import copy
@@ -16,13 +16,13 @@ PASTA_PADROES = RAIZ / "config"          # padrões que vêm com o programa (nã
 
 def _pasta_usuario() -> Path:
     """Onde ficam as configurações DE CADA PESSOA (assim o app pode ser compartilhado)."""
-    if os.environ.get("ATHENA_DADOS"):
-        return Path(os.environ["ATHENA_DADOS"])
+    if os.environ.get("ATENA_DADOS"):
+        return Path(os.environ["ATENA_DADOS"])
     if os.name == "nt":
-        return Path(os.environ.get("APPDATA", Path.home())) / "ATHENA"
+        return Path(os.environ.get("APPDATA", Path.home())) / "ATENA"
     if sys.platform == "darwin":
-        return Path.home() / "Library" / "Application Support" / "ATHENA"
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "athena"
+        return Path.home() / "Library" / "Application Support" / "ATENA"
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "atena"
 
 
 PASTA_USUARIO = _pasta_usuario()
@@ -35,7 +35,7 @@ PADRAO_CONFIG = {
     "cerebro": {"provedor": "ollama", "url": "http://localhost:11434", "modelo": "qwen3-vl:8b",
                 "temperatura": 0.6, "max_historico": 16, "max_passos": 16},
     "visao": {"modelo": "qwen3-vl:8b", "usar_ia": True, "idioma_ocr": "pt-BR"},
-    "ativacao": {"palavras": ["atena", "athena"], "atalho": "ctrl+alt+a",
+    "ativacao": {"palavras": ["atena"], "atalho": "ctrl+alt+a",
                  "palmas": True, "num_palmas": 2, "exigencia_palmas": 1.0,
                  "modelo_vosk": "modelos/vosk-pt", "conversa_continua": True,
                  "segundos_conversa_continua": 6},
@@ -51,6 +51,8 @@ PADRAO_CONFIG = {
         "apps": True, "fechar_apps": True, "navegador": True, "internet": True, "teclado": True,
         "midia_volume": True, "energia": True, "notas_timers": True, "memoria": True, "tela": True,
     },
+    "habilidades": {"sugerir": True, "minimo_passos": 3},
+    "telegram": {"token": "", "chat_autorizado": None, "avisar_rotinas": True},
     "primeira_vez": True,
 }
 
@@ -69,7 +71,7 @@ PERMISSOES = {
 }
 
 PADRAO_PERSONALIDADE = {
-    "nome": "ATHENA",
+    "nome": "ATENA",
     "significado": "Assistente Tecnológica de Execução e Navegação Artificial",
     "como_me_chamar": "",
     "preset": "elegante_com_humor",
@@ -156,7 +158,7 @@ class Config:
 
     @property
     def nome_ia(self) -> str:
-        return str(self.personalidade.get("nome") or "ATHENA")
+        return str(self.personalidade.get("nome") or "ATENA")
 
     def caminho(self, relativo: str) -> Path:
         p = Path(relativo)

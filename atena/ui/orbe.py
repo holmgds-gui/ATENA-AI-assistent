@@ -1,4 +1,4 @@
-"""Janela flutuante da ATHENA com o holograma (orbe) e a legenda."""
+"""Janela flutuante da ATENA com o holograma (orbe) e a legenda."""
 from __future__ import annotations
 
 from PySide6.QtCore import QPropertyAnimation, Qt, QTimer, Signal
@@ -41,7 +41,7 @@ class JanelaOrbe(QWidget):
         self._timer_sumir = QTimer(self, singleShot=True, timeout=self._sumir)
         self._anim = QPropertyAnimation(self, b"windowOpacity", self)
         self._anim.finished.connect(self._fim_anim)
-        self.setToolTip("Clique duas vezes pra chamar a ATHENA · botão direito: opções")
+        self.setToolTip("Clique duas vezes pra chamar a ATENA · botão direito: opções")
 
     # ---- surgir / sumir (modo invisível)
     def surgir(self) -> None:
@@ -78,11 +78,11 @@ class JanelaOrbe(QWidget):
         self.adjustSize()
         self.move(tela.right() - self.width() - 24, tela.bottom() - self.orbe.height() - 110)
 
-    def mostrar_texto(self, texto: str, de_quem: str = "athena", segundos: float = 7) -> None:
+    def mostrar_texto(self, texto: str, de_quem: str = "atena", segundos: float = 7) -> None:
         if not self._mostrar_legenda or not texto:
             return
-        cor = tema.DESTAQUE if de_quem in ("athena", "acao") else tema.APAGADO
-        prefixo = {"athena": "ATHENA ›", "acao": "EXECUTANDO ›"}.get(de_quem, "VOCÊ ›")
+        cor = tema.DESTAQUE if de_quem in ("atena", "acao") else tema.APAGADO
+        prefixo = {"atena": "ATENA ›", "acao": "EXECUTANDO ›"}.get(de_quem, "VOCÊ ›")
         curto = texto if len(texto) < 220 else texto[:217] + "…"
         self.legenda.setText(f'<span style="font-family:\'Share Tech Mono\'; font-size:10px; color:{cor};'
                              f' letter-spacing:1px">{prefixo}</span><br>{curto}')
@@ -111,7 +111,7 @@ class JanelaOrbe(QWidget):
 
     def contextMenuEvent(self, ev):
         menu = QMenu(self)
-        for texto, sinal in (("Chamar a ATHENA", self.clicado), ("Configurações", self.abrir_painel),
+        for texto, sinal in (("Chamar a ATENA", self.clicado), ("Configurações", self.abrir_painel),
                              ("Ligar/desligar microfone", self.alternar_mudo)):
             acao = QAction(texto, menu)
             acao.triggered.connect(sinal.emit)

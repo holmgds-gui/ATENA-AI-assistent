@@ -1,4 +1,4 @@
-"""O cérebro da ATHENA. Hoje: Ollama (IA local). Feito pra plugar outros depois (Gemini, Claude...)."""
+"""O cérebro da ATENA. Hoje: Ollama (IA local). Feito pra plugar outros depois (Gemini, Claude...)."""
 from __future__ import annotations
 
 import json
@@ -43,6 +43,11 @@ REGRAS:
 - Se pedirem algo que você não tem ferramenta pra fazer, diga que essa permissão está desligada
   ou que ainda não sabe fazer isso, sem inventar.
 
+HABILIDADES E ROTINAS:
+- Habilidades são sequências salvas (ex: "modo estudo"). Pra criar uma a partir de uma descrição, use salvar_habilidade.
+- Pra coisas em horário marcado ("todo dia às 7h...", "amanhã às 9h me lembra..."), use agendar.
+- Habilidades salvas agora: {", ".join(h["nome"] for h in getattr(config, "_listar_habilidades", list)()) or "nenhuma"}.
+
 O QUE VOCÊ SABE SOBRE O {usuario.upper()}:
 {memoria}
 """
@@ -67,6 +72,7 @@ class CerebroOllama:
     def __init__(self, config):
         self.config = config
         self.historico: list[dict] = []
+        self.ultimas_execucoes: list[tuple[str, dict, str]] = []  # (ferramenta, args, resultado) do último pedido
         self._usa_think = True
 
     # ---------------- utilidades ----------------
@@ -135,6 +141,7 @@ class CerebroOllama:
                   confirmar: Callable[[str], bool] | None = None,
                   ao_usar_ferramenta: Callable[[str, dict], None] | None = None) -> str:
         """Manda a fala do usuário, deixa a IA usar ferramentas, e devolve a resposta final em texto."""
+        self.ultimas_execucoes = []
         self.historico.append({"role": "user", "content": texto_usuario})
         mensagens = [{"role": "system", "content": montar_prompt_sistema(self.config)}] + self.historico
         autonomia = self.config.get("seguranca.autonomia", "confirmar_arriscadas")
@@ -167,6 +174,7 @@ class CerebroOllama:
                 if ao_usar_ferramenta:
                     ao_usar_ferramenta(nome, args)
                 resultado = self._executar_com_seguranca(nome, args, ctx, autonomia, confirmar)
+                self.ultimas_execucoes.append((nome, dict(args), resultado))
                 mensagens.append({"role": "tool", "content": resultado, "tool_name": nome})
 
         resposta = f"Me enrolei nas etapas dessa, {self.config.nome_usuario}. Pode pedir de outro jeito?"

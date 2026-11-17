@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Instalador da ATHENA para macOS e Linux (experimental — o foco agora é Windows)
+# Instalador da ATENA para macOS e Linux (experimental — o foco agora é Windows)
 set -e
 cd "$(dirname "$0")"
 
-echo "== ATHENA — instalador (macOS/Linux) =="
+echo "== ATENA — instalador (macOS/Linux) =="
 PY=$(command -v python3.12 || command -v python3.11 || command -v python3)
 [ -z "$PY" ] && { echo "Instale o Python 3.11 ou 3.12 primeiro."; exit 1; }
 
@@ -29,6 +29,6 @@ case "$op" in
 esac
 if [ -n "$M" ]; then
   ollama pull "$M"
-  .venv/bin/python -c "from athena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '$M'}})"
+  .venv/bin/python -c "from atena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '$M'}})"
 fi
 echo "Pronto! Rode: .venv/bin/python main.py"

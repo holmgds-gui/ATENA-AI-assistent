@@ -1,0 +1,74 @@
+name: Gerar ATENA-Setup.exe
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar bibliotecas
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller pytest
+
+      - name: Testes (no Windows de verdade)
+        run: python -m pytest -q
+
+      - name: Baixar detector da palavra "Atena" (Vosk)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip -OutFile vosk.zip
+          Expand-Archive vosk.zip -DestinationPath modelos
+          Rename-Item modelos/vosk-model-small-pt-0.3 vosk-pt
+
+      - name: Gerar ATENA.exe (PyInstaller)
+        run: pyinstaller atena.spec --noconfirm
+
+      - name: Conferir se o .exe abre e carrega tudo
+        shell: pwsh
+        run: |
+          $env:ATENA_VERIFICAR = "$PWD\verificar.txt"
+          $p = Start-Process dist\ATENA\ATENA.exe -ArgumentList "--verificar" -Wait -PassThru
+          Get-Content verificar.txt
+          if ($p.ExitCode -ne 0) { Write-Error "o .exe não carregou tudo"; exit 1 }
+
+      - name: Montar instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+          $env:ATENA_VERSAO = "${{ github.ref_name }}".TrimStart("v")
+          if ($env:ATENA_VERSAO -notmatch '^\d') { $env:ATENA_VERSAO = "0.0.0-teste" }
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" instalador\atena.iss
+          Get-Item dist\ATENA-Setup.exe | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ATENA-Setup
+          path: dist/ATENA-Setup.exe
+
+      - name: Publicar na página de Releases
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/ATENA-Setup.exe
+          name: ATENA ${{ github.ref_name }}
+          body: |
+            **Baixe o `ATENA-Setup.exe` aqui embaixo, em Assets.**
+
+            1. Abra o `ATENA-Setup.exe` (se o Windows avisar "app desconhecido", clique em *Mais informações → Executar assim mesmo*).
+            2. Deixe marcado **Instalar o Ollama**.
+            3. Abra a ATENA: na primeira vez aparece a apresentação e, no fim, o botão pra baixar o modelo de IA.

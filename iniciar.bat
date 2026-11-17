@@ -1,7 +1,7 @@
 @echo off
 cd /d "%~dp0"
 if not exist ".venv\Scripts\pythonw.exe" (
-    echo A ATHENA ainda nao foi instalada. Rodando o instalador...
+    echo A ATENA ainda nao foi instalada. Rodando o instalador...
     call instalar.bat
     exit /b
 )

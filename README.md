@@ -1,4 +1,4 @@
-# ATHENA
+# ATENA
 
 **Assistente Tecnológica de Execução e Navegação Artificial**
 
@@ -8,7 +8,15 @@ Assistente de voz para o computador, no estilo do JARVIS. Você diz **"Atena"** 
 
 ---
 
-## Instalação (Windows)
+## ⬇️ Baixar (Windows)
+
+**[Clique aqui pra baixar o `ATENA-Setup.exe`](https://github.com/holmgds-gui/ATENA-AI-assistent/releases/latest)** (em *Assets*).
+
+1. Abra o `ATENA-Setup.exe`. Se o Windows avisar "app desconhecido", clique em **Mais informações → Executar assim mesmo** (acontece com todo app novo sem assinatura paga).
+2. Deixe marcado **Instalar o Ollama**.
+3. Abra a ATENA. Na primeira vez aparece a apresentação; no fim, escolha o tamanho do modelo e clique em **BAIXAR MODELO**.
+
+## Instalação pelo código (pra quem programa)
 
 1. Instale o **Python 3.12** em [python.org](https://www.python.org/downloads/) e marque **"Add python.exe to PATH"**.
 2. Baixe este projeto (botão verde **Code → Download ZIP**) e extraia numa pasta.
@@ -17,7 +25,7 @@ Assistente de voz para o computador, no estilo do JARVIS. Você diz **"Atena"** 
    - baixar o detector da palavra "Atena" (~30 MB);
    - instalar o **Ollama** se ele ainda não estiver no PC, e baixar o modelo de IA;
    - criar um atalho na Área de Trabalho (e, se você quiser, abrir junto com o Windows).
-4. Abra a ATHENA pelo atalho. Na primeira vez aparece a **apresentação**, onde você escolhe seu nome, a personalidade dela, as permissões e a voz.
+4. Abra a ATENA pelo atalho. Na primeira vez aparece a **apresentação**, onde você escolhe seu nome, a personalidade dela, as permissões e a voz.
 
 ### Qual modelo escolher?
 
@@ -60,6 +68,12 @@ Dá pra trocar depois em **Configurações → Cérebro**.
 
 Globo de malha 3D + anéis de giroscópio + rede neural + partículas. Esperando: gira devagar · ouvindo: pulsa com a sua voz · pensando: pulsos correm pela rede · falando: a malha ondula e solta ondas · cinza: microfone desligado · vermelho: erro. Cor padrão azul elétrico; troque em **Aparência** (8 paletas + personalizada).
 
+## Habilidades, rotinas e celular
+
+- **Habilidades:** depois de uma tarefa com 3+ passos ela pergunta *"quer que eu salve isso como habilidade?"*. Responda com um nome ("sim, modo estudo") e depois é só falar **"modo estudo"**. Também dá pra criar direto: *"Atena, cria a habilidade modo jogo que abre o Discord e a Steam"*.
+- **Rotinas agendadas:** *"Atena, todo dia às 7h me dá o resumo do dia"*, *"dias úteis às 19h30 ativa o modo estudo"*. Veja e apague em **Rotinas**.
+- **Celular (Telegram):** em **Celular**, siga os 3 passos (criar bot no @BotFather, colar o token, mandar o código). Aí é só mandar texto ou áudio pro bot. Comandos: `/tela` (print), `/pc` (status), `/parar` (pânico). Só o seu celular pareado é atendido.
+
 ## Ela enxerga a tela e mexe junto com você
 
 Peça coisas como *"Atena, abre o WhatsApp e manda 'chego em 10 min' pro João"* ou *"clica em configurações"*. Ela usa três "olhos":
@@ -82,7 +96,7 @@ Uso e temperatura de CPU e placa de vídeo, RAM, VRAM, clocks (com indicador de 
 
 - CPU, RAM, disco, rede e processos funcionam sempre.
 - **Temperaturas, clocks, ventoinhas e GPU** precisam do [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor) aberto (o instalador oferece instalar). Abra como administrador e ligue **Options → Remote Web Server → Run**.
-- A ATHENA **mostra** os clocks e se o boost está ativo, mas não faz overclock (isso é melhor no AMD Adrenalin).
+- A ATENA **mostra** os clocks e se o boost está ativo, mas não faz overclock (isso é melhor no AMD Adrenalin).
 
 ---
 
@@ -90,9 +104,9 @@ Uso e temperatura de CPU e placa de vídeo, RAM, VRAM, clocks (com indicador de 
 
 Cada pessoa que instala tem a **própria configuração** (nome, personalidade, permissões, memória), salva em:
 
-- Windows: `%APPDATA%\ATHENA`
-- macOS: `~/Library/Application Support/ATHENA`
-- Linux: `~/.config/athena`
+- Windows: `%APPDATA%\ATENA`
+- macOS: `~/Library/Application Support/ATENA`
+- Linux: `~/.config/atena`
 
 A pasta do projeto só tem os padrões. Pra rever a apresentação: **Configurações → Sobre → Rever apresentação**, ou rode `python main.py --apresentacao`.
 
@@ -118,23 +132,28 @@ A pasta do projeto só tem os padrões. Pra rever a apresentação: **Configura�
 
 | Pasta / arquivo | O que é |
 |---|---|
-| `athena/assistente.py` | o maestro: liga ouvido, cérebro e voz |
-| `athena/ouvido.py` | microfone, palavra "Atena" e transcrição |
-| `athena/cerebro.py` | conversa com o Ollama e usa as ferramentas |
-| `athena/ferramentas.py` | **as habilidades** (é aqui que se adicionam novas) |
-| `athena/atalhos.py` | comandos rápidos sem IA |
-| `athena/sistema.py` | o que realmente mexe no PC (Windows/mac/Linux) |
-| `athena/voz.py` | a voz dela |
-| `athena/palmas.py` | detector de palmas (sem IA) |
-| `athena/visao.py` | olhos: acessibilidade + OCR + IA de visão |
-| `athena/monitor.py` | leitura de sensores do PC |
-| `athena/ui/` | holograma, apresentação, painel HUD e monitor |
-| `athena/ui/fontes/` | Orbitron, Rajdhani e Share Tech Mono (licença OFL) |
+| `atena/assistente.py` | o maestro: liga ouvido, cérebro e voz |
+| `atena/ouvido.py` | microfone, palavra "Atena" e transcrição |
+| `atena/cerebro.py` | conversa com o Ollama e usa as ferramentas |
+| `atena/ferramentas.py` | **as habilidades** (é aqui que se adicionam novas) |
+| `atena/atalhos.py` | comandos rápidos sem IA |
+| `atena/sistema.py` | o que realmente mexe no PC (Windows/mac/Linux) |
+| `atena/voz.py` | a voz dela |
+| `atena/palmas.py` | detector de palmas (sem IA) |
+| `atena/visao.py` | olhos: acessibilidade + OCR + IA de visão |
+| `atena/habilidades.py` | rotinas aprendidas |
+| `atena/agenda.py` | rotinas agendadas |
+| `atena/telegram.py` | canal do celular |
+| `atena.spec`, `instalador/` | receita do `.exe` e do instalador |
+| `.github/workflows/` | gera o `ATENA-Setup.exe` a cada versão (`git tag v0.x.y`) |
+| `atena/monitor.py` | leitura de sensores do PC |
+| `atena/ui/` | holograma, apresentação, painel HUD e monitor |
+| `atena/ui/fontes/` | Orbitron, Rajdhani e Share Tech Mono (licença OFL) |
 | `config/` | configurações padrão |
 
 ### Criar uma habilidade nova
 
-Em `athena/ferramentas.py`:
+Em `atena/ferramentas.py`:
 
 ```python
 @ferramenta("cotacao_dolar", "Diz a cotação atual do dólar.", permissao="internet")
@@ -170,10 +189,11 @@ iniciar.bat debug              :: abre mostrando as mensagens (pra achar erros)
 ## Próximas fases
 
 - [x] Visão da tela: ler, achar botões e clicar
-- [ ] Aprender rotinas novas sozinha (ideia do Hermes Agent)
-- [ ] Rotinas agendadas ("todo dia às 7h…")
-- [ ] Falar com ela pelo celular (Telegram/WhatsApp)
+- [x] Aprender rotinas novas (habilidades), ideia do Hermes Agent
+- [x] Rotinas agendadas ("todo dia às 7h…")
+- [x] Falar com ela pelo celular (Telegram)
+- [ ] WhatsApp
 - [ ] Cérebros de nuvem opcionais (Gemini / Claude) pra tarefas difíceis
 - [ ] Integração com WhatsApp, e-mail e agenda
-- [ ] App de celular pra falar com a ATHENA do PC
+- [ ] App de celular pra falar com a ATENA do PC
 - [ ] Instalador `.exe` de um clique

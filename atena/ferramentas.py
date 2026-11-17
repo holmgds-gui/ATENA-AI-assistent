@@ -41,7 +41,7 @@ class Ferramenta:
 
 @dataclass
 class Contexto:
-    """O que as ferramentas recebem pra conversar com o resto da ATHENA."""
+    """O que as ferramentas recebem pra conversar com o resto da ATENA."""
     config: object
     falar: Callable[[str], None] = lambda t: None
     extras: dict = field(default_factory=dict)
@@ -176,7 +176,7 @@ def _data_hora(ctx: Contexto):
     return descrever_data_hora()
 
 
-@ferramenta("criar_nota", "Salva uma anotação num arquivo de notas (Documentos/ATHENA/notas.txt).",
+@ferramenta("criar_nota", "Salva uma anotação num arquivo de notas (Documentos/ATENA/notas.txt).",
             {"texto": _txt(desc="O que anotar")},
             permissao="notas_timers")
 def _nota(ctx: Contexto, texto: str):
@@ -296,6 +296,89 @@ def _rolar(ctx: Contexto, direcao: str, quantidade: int = 5):
 def _focar(ctx: Contexto, nome: str):
     r = _visao(ctx).focar_janela(nome)
     return f"Janela em foco: {r}" if r else f"Não achei janela aberta com '{nome}'."
+
+
+# ======================================================================
+#  Habilidades (rotinas que ela aprende) e agenda
+# ======================================================================
+_PASSO = {"type": "object", "properties": {
+    "ferramenta": {"type": "string", "description": "abrir_app, abrir_site, tocar_youtube, digitar_texto, "
+                                                    "apertar_teclas, volume, controle_midia, clicar, focar_janela, timer..."},
+    "args": {"type": "object", "description": "argumentos dessa ferramenta, ex: {\"nome\": \"spotify\"}"}}}
+
+
+@ferramenta("salvar_habilidade",
+            "Cria/atualiza uma habilidade: uma sequência de ações com um nome (ex: 'modo estudo' = abrir Notion, "
+            "tocar lo-fi). Depois o usuário só fala o nome que tudo roda.",
+            {"nome": _txt(desc="Nome curto, ex: 'modo estudo'"),
+             "passos": {"type": "array", "items": _PASSO, "description": "Lista de ações em ordem"}},
+            permissao="memoria")
+def _salvar_hab(ctx: Contexto, nome: str, passos: list):
+    from .habilidades import descrever_passos
+    validos = [p for p in (passos or []) if isinstance(p, dict) and p.get("ferramenta") in REGISTRO]
+    if not validos:
+        return "Nenhum passo válido. Use nomes de ferramentas existentes."
+    h = ctx.extras["habilidades"].salvar(nome, [{"ferramenta": p["ferramenta"], "args": p.get("args") or {}}
+                                               for p in validos])
+    return f"Habilidade '{h['nome']}' salva: {descrever_passos(h['passos'])}."
+
+
+@ferramenta("listar_habilidades", "Lista as habilidades salvas e o que cada uma faz.", permissao="memoria")
+def _listar_hab(ctx: Contexto):
+    from .habilidades import descrever_passos
+    lista = ctx.extras["habilidades"].lista
+    if not lista:
+        return "Nenhuma habilidade salva ainda."
+    return "\n".join(f"- {h['nome']}: {descrever_passos(h['passos'])}" for h in lista)
+
+
+@ferramenta("executar_habilidade", "Roda uma habilidade salva pelo nome.",
+            {"nome": _txt(desc="Nome da habilidade")}, permissao="memoria")
+def _executar_hab(ctx: Contexto, nome: str):
+    hab = ctx.extras["habilidades"].procurar(nome)
+    if not hab:
+        return f"Não existe habilidade '{nome}'."
+    return ctx.extras["rodar_habilidade"](hab)
+
+
+@ferramenta("apagar_habilidade", "Apaga uma habilidade salva.", {"nome": _txt(desc="Nome da habilidade")},
+            permissao="memoria", arriscada=True, pergunta="Apagar a habilidade {nome}?")
+def _apagar_hab(ctx: Contexto, nome: str):
+    return "Apagada." if ctx.extras["habilidades"].apagar(nome) else f"Não achei '{nome}'."
+
+
+@ferramenta("agendar",
+            "Agenda algo pra um horário. O 'pedido' é o que o usuário diria na hora (ex: 'me dá o resumo do dia', "
+            "'lembra de tomar água') OU o nome de uma habilidade. 'repetir': nao, todo_dia, dias_uteis, fim_de_semana "
+            "ou dias separados por vírgula (seg,qua,sex).",
+            {"hora": _txt(desc="HH:MM, ex: 07:00"),
+             "pedido": _txt(desc="O que fazer na hora", opcional=True),
+             "habilidade": _txt(desc="Nome de habilidade salva pra rodar", opcional=True),
+             "repetir": _txt(desc="nao | todo_dia | dias_uteis | fim_de_semana | seg,ter,...", opcional=True),
+             "data": _txt(desc="AAAA-MM-DD, só pra uma vez num dia específico", opcional=True)},
+            permissao="notas_timers")
+def _agendar(ctx: Contexto, hora: str, pedido: str = "", habilidade: str = "", repetir: str = "nao", data: str = ""):
+    from .agenda import descrever
+    dias = "" if str(repetir).lower() in ("", "nao", "não", "false", "no") else repetir
+    try:
+        r = ctx.extras["agenda"].adicionar(hora, pedido=pedido, habilidade=habilidade, dias=dias, data=data)
+    except ValueError as e:
+        return f"Não consegui agendar: {e}"
+    return f"Agendado ({r['id']}): {descrever(r)}"
+
+
+@ferramenta("listar_agendamentos", "Lista as rotinas agendadas.", permissao="notas_timers")
+def _listar_ag(ctx: Contexto):
+    from .agenda import descrever
+    lista = [r for r in ctx.extras["agenda"].lista if r.get("ativa", True)]
+    return "\n".join(f"- ({r['id']}) {descrever(r)}" for r in lista) or "Nada agendado."
+
+
+@ferramenta("cancelar_agendamento", "Cancela rotinas agendadas por id ou por parte do texto.",
+            {"chave": _txt(desc="id (ex: a1b2c3) ou palavra do pedido")}, permissao="notas_timers")
+def _cancelar_ag(ctx: Contexto, chave: str):
+    n = ctx.extras["agenda"].cancelar(chave)
+    return f"{n} agendamento(s) cancelado(s)." if n else "Não achei esse agendamento."
 
 
 # ----------------------------------------------------------------------

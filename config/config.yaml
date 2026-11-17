@@ -1,5 +1,5 @@
 # ============================================================
-#  ATHENA — Configurações gerais
+#  ATENA — Configurações gerais
 #  (Quase tudo aqui também pode ser mudado pelo painel)
 # ============================================================
 
@@ -17,9 +17,9 @@ visao:
   idioma_ocr: pt-BR
 
 ativacao:
-  palavras: [atena, athena]     # como você chama ela
+  palavras: [atena]            # como você chama ela
   atalho: ctrl+alt+a            # atalho de teclado pra chamar sem falar
-  palmas: true                  # bater palmas também chama a ATHENA
+  palmas: true                  # bater palmas também chama a ATENA
   num_palmas: 2                 # quantas palmas seguidas (1, 2 ou 3)
   exigencia_palmas: 1.0         # maior = precisa de palma mais forte (se disparar sozinha, aumente)
   modelo_vosk: modelos/vosk-pt  # pasta do modelo de reconhecimento da palavra

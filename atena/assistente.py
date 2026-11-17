@@ -1,8 +1,8 @@
-"""O 'maestro' da ATHENA: junta ouvido, cérebro, voz e ferramentas num ciclo só.
+"""O 'maestro' da ATENA: junta ouvido, cérebro, voz e ferramentas num ciclo só.
 
 Não depende da interface: avisa o que está acontecendo pela função `evento(tipo, dados)`.
 Tipos de evento: estado ('dormindo'|'ouvindo'|'pensando'|'falando'|'mudo'|'erro'),
-                 voce (o que você falou), athena (o que ela respondeu), log, acao.
+                 voce (o que você falou), atena (o que ela respondeu), log, acao.
 """
 from __future__ import annotations
 
@@ -14,7 +14,10 @@ import threading
 import traceback
 
 from . import atalhos
+from . import habilidades as hab_mod
+from .agenda import Agenda
 from .cerebro import ErroCerebro, criar_cerebro
+from .config import PASTA_USUARIO
 from .ferramentas import Contexto
 from .sistema import normalizar
 from .voz import Voz
@@ -22,6 +25,26 @@ from .voz import Voz
 SIM = r"\b(sim|pode|confirmo|confirma|claro|manda|isso|positivo|faz|faca|vai|bora|com certeza|ok|beleza)\b"
 NAO = r"\b(nao|cancela|cancelar|negativo|para|deixa|esquece)\b"
 CANCELAR = r"^(nada|cancela|cancelar|deixa|deixa pra la|esquece|esquece isso|nao e nada|nao era nada)$"
+
+
+class CanalAgenda:
+    """Rotina agendada: fala no PC (e avisa no Telegram, se conectado). Não dá pra confirmar nada sozinho."""
+    nome = "agenda"
+
+    def __init__(self, assistente):
+        self.a = assistente
+
+    def enviar(self, texto: str) -> None:
+        self.a._falar_pc(texto)
+        tg = self.a.telegram
+        if tg is not None and tg.conectado and self.a.config.get("telegram.avisar_rotinas", True):
+            tg.enviar(f"⏰ {texto}")
+
+    def confirmar(self, pergunta: str) -> bool:
+        return False
+
+    def perguntar(self, pergunta: str) -> str:
+        return ""
 
 
 class Assistente:
@@ -33,13 +56,21 @@ class Assistente:
         self.voz = Voz(config)
         self.ouvido = None
         self._cancelar = threading.Event()
+        self.habilidades = hab_mod.Habilidades(PASTA_USUARIO)
+        config._listar_habilidades = lambda: self.habilidades.lista
+        self.agenda = Agenda(PASTA_USUARIO, ao_disparar=self._ao_disparar_agenda)
+        self.telegram = None
+        self.canal = None            # de onde veio o pedido atual (None = voz/painel no PC)
+        self._whisper_extra = None
         self.ctx = Contexto(config=config, falar=self.falar_async,
-                            extras={"cancelar": self._cancelar, "mira": self._mira})
+                            extras={"cancelar": self._cancelar, "mira": self._mira,
+                                    "habilidades": self.habilidades, "agenda": self.agenda,
+                                    "rodar_habilidade": self._rodar_habilidade})
         self.executando = False
         self._rodando = threading.Event()
         self._interromper = threading.Event()
         self._chamado_manual = False
-        self._textos: queue.Queue[str] = queue.Queue()
+        self._textos: queue.Queue[tuple[str, object]] = queue.Queue()
         self._origem_texto = False
         self.mudo = False
         self.estado = "dormindo"
@@ -55,10 +86,13 @@ class Assistente:
 
     def iniciar(self) -> None:
         self._rodando.set()
-        threading.Thread(target=self._preparar_e_rodar, daemon=True, name="athena").start()
+        threading.Thread(target=self._preparar_e_rodar, daemon=True, name="atena").start()
 
     def encerrar(self) -> None:
         self._rodando.clear()
+        self.agenda.parar()
+        if self.telegram:
+            self.telegram.parar()
         self._interromper.set()
         self.voz.parar()
         if self.ouvido:
@@ -78,16 +112,16 @@ class Assistente:
         if self.executando or self.voz.falando:
             self._cancelar.set()
             self.voz.parar()
-            self.evento("athena", "⛔ Parei tudo.")
+            self.evento("atena", "⛔ Parei tudo.")
             self._log("[pânico] ações canceladas")
 
     def _mira(self, x: int, y: int, rotulo: str = "") -> None:
         self.evento("mira", {"x": x, "y": y, "rotulo": rotulo})
 
-    def enviar_texto(self, texto: str) -> None:
-        """Manda um comando escrito (pelo painel ou terminal)."""
+    def enviar_texto(self, texto: str, canal=None) -> None:
+        """Manda um pedido escrito (painel, terminal, Telegram ou rotina agendada)."""
         if texto.strip():
-            self._textos.put(texto.strip())
+            self._textos.put((texto.strip(), canal))
             self._interromper.set()
 
     def alternar_mudo(self) -> bool:
@@ -103,9 +137,19 @@ class Assistente:
 
     # ================================================================== voz
     def falar(self, texto: str) -> None:
+        """Responde pelo canal certo: voz no PC, ou mensagem no Telegram."""
         if not texto:
             return
-        self.evento("athena", texto)
+        if self.canal is not None:
+            self.evento("atena", texto)
+            self.canal.enviar(texto)
+            return
+        self._falar_pc(texto)
+
+    def _falar_pc(self, texto: str) -> None:
+        if not texto:
+            return
+        self.evento("atena", texto)
         if self.ouvido:
             self.ouvido.surdo(True)
         try:
@@ -137,6 +181,8 @@ class Assistente:
                 self._log(f"[ouvido] microfone indisponível ({e}). Use o atalho ou escreva no painel.")
 
         threading.Thread(target=self._carregar_extras, daemon=True).start()
+        self.agenda.iniciar()
+        self.conectar_telegram()
         self.falar(self._saudacao())
         if not self.cerebro.esta_online():
             self.falar("Aviso: não estou encontrando o Ollama. Os comandos rápidos funcionam, "
@@ -159,10 +205,15 @@ class Assistente:
 
     def _uma_rodada(self) -> None:
         self._interromper.clear()
-        # 1) texto digitado tem prioridade
+        # 1) texto digitado / Telegram / rotina agendada têm prioridade
         if not self._textos.empty():
+            texto, canal = self._textos.get()
             self._origem_texto = True
-            self.processar(self._textos.get())
+            self.canal = canal
+            try:
+                self.processar(texto)
+            finally:
+                self.canal = None
             return
         self._origem_texto = False
 
@@ -170,7 +221,7 @@ class Assistente:
             self._interromper.wait(timeout=0.5)
             if self._chamado_manual:
                 self._chamado_manual = False
-                self.evento("athena", "Meu microfone está desligado. Pode escrever no painel.")
+                self.evento("atena", "Meu microfone está desligado. Pode escrever no painel.")
             return
 
         # 2) espera "Atena" (ou clique/atalho)
@@ -263,6 +314,12 @@ class Assistente:
             self.falar("Conversa reiniciada. Do que precisa?")
             return
 
+        hab = self.habilidades.procurar(texto)
+        if hab is not None:
+            self.falar(f"Ativando {hab['nome']}.")
+            self.falar(self._rodar_habilidade(hab))
+            return
+
         if self.config.get("atalhos_rapidos", True):
             try:
                 r = atalhos.tentar(texto, self.config)
@@ -288,7 +345,107 @@ class Assistente:
         if self._cancelar.is_set():
             self._cancelar.clear()
             resposta = "Parei, como você pediu."
-        self.falar(resposta)
+            self.falar(resposta)
+            return
+        passos = hab_mod.converter_passos(self.cerebro.ultimas_execucoes)
+        sugerir = (self.config.get("habilidades.sugerir", True) and self.config.permitido("memoria")
+                   and len(passos) >= int(self.config.get("habilidades.minimo_passos", 3))
+                   and not isinstance(self.canal, CanalAgenda)
+                   and not any(n == "executar_habilidade" for n, _, _ in self.cerebro.ultimas_execucoes))
+        if not sugerir:
+            self.falar(resposta)
+            return
+        self.falar(resposta + " Quer que eu salve isso como uma habilidade?")
+        self._oferecer_habilidade(passos)
+
+    # ================================================================== habilidades
+    def _perguntar(self, pergunta: str | None = None) -> str:
+        """Espera uma resposta curta pelo mesmo canal (voz, painel ou Telegram)."""
+        if pergunta:
+            if self.canal is not None:
+                self.evento("atena", pergunta)
+                return self.canal.perguntar(pergunta)
+            self.falar(pergunta)
+        elif self.canal is not None:
+            return self.canal.perguntar("…")
+        if self._origem_texto or self.ouvido is None:
+            try:
+                return self._textos.get(timeout=40)[0]
+            except queue.Empty:
+                return ""
+        self._estado("ouvindo")
+        audio = self.ouvido.gravar_fala(espera_max=7)
+        return self.ouvido.transcrever(audio) if audio else ""
+
+    def _oferecer_habilidade(self, passos: list[dict]) -> None:
+        resp = self._perguntar(None if self.canal is None else "")
+        if self.canal is not None and not resp:
+            return
+        r = normalizar(resp)
+        if not r or re.search(NAO, r) and not re.search(r"(salva|chama)", r):
+            self.falar("Tudo bem, não salvei.")
+            return
+        nome = re.sub(r"^(sim|pode|claro|isso|ok|beleza|bora|salva|salvar|quero)\b[ ,]*", "", r)
+        nome = re.sub(r"^(sim|pode|claro|ok)\b[ ,]*", "", nome)
+        nome = re.sub(r"^(salva|salvar|salve|chama|chame|bota|coloca)?\s*(como|de|o nome de)?\s*", "", nome).strip()
+        if not nome or len(nome) < 3:
+            nome = normalizar(self._perguntar("Como quer chamar essa habilidade?"))
+            nome = re.sub(r"^(chama|chame|de|como)\s+", "", nome).strip()
+        if not nome:
+            self.falar("Fica pra próxima.")
+            return
+        h = self.habilidades.salvar(nome, passos)
+        self.falar(f"Salvei como {h['nome']}. Da próxima vez é só falar {h['nome']}.")
+
+    def _rodar_habilidade(self, hab: dict) -> str:
+        autonomia = self.config.get("seguranca.autonomia", "confirmar_arriscadas")
+
+        def executor(nome, args):
+            self._ao_usar_ferramenta(nome, args)
+            return self.cerebro._executar_com_seguranca(nome, args, self.ctx, autonomia, self._confirmar)
+
+        self._cancelar.clear()
+        self.executando = True
+        try:
+            resultados = hab_mod.executar(hab, executor, self._cancelar)
+        finally:
+            self.executando = False
+        self.habilidades.registrar_uso(hab)
+        if "cancelado" in resultados:
+            self._cancelar.clear()
+            return "Parei no meio, como você pediu."
+        falhas = [r for r in resultados if normalizar(r).startswith(tuple(normalizar(f) for f in hab_mod.FALHAS))]
+        if falhas:
+            return f"{hab['nome'].capitalize()} rodou, mas {len(falhas)} passo(s) não deram certo."
+        return random.choice([f"{hab['nome'].capitalize()} pronto.", "Tudo pronto.", "Feito."])
+
+    # ================================================================== agenda e Telegram
+    def _ao_disparar_agenda(self, r: dict) -> None:
+        self._log(f"[agenda] rodando: {r.get('habilidade') or r.get('pedido')}")
+        self.enviar_texto(r.get("habilidade") or r.get("pedido") or "", CanalAgenda(self))
+
+    def conectar_telegram(self) -> None:
+        if self.telegram is not None:
+            self.telegram.parar()
+            self.telegram = None
+        if not self.config.get("telegram.token"):
+            return
+        from .telegram import CanalTelegram, print_jpeg
+        self.telegram = CanalTelegram(self.config, ao_receber=self.enviar_texto,
+                                      transcrever=self._transcrever_arquivo, ao_panico=self.panico,
+                                      print_tela=print_jpeg, log=self._log)
+        self.telegram.iniciar()
+
+    def _transcrever_arquivo(self, caminho: str) -> str:
+        modelo = getattr(self.ouvido, "_whisper", None) if self.ouvido else None
+        if modelo is None:
+            if self._whisper_extra is None:
+                from faster_whisper import WhisperModel
+                self._whisper_extra = WhisperModel(self.config.get("ouvido.modelo_whisper", "small"),
+                                                   device="cpu", compute_type="int8")
+            modelo = self._whisper_extra
+        segmentos, _ = modelo.transcribe(caminho, language="pt", beam_size=3)
+        return " ".join(s.text.strip() for s in segmentos).strip()
 
     _ROTULOS = {
         "abrir_app": "abrindo {nome}", "fechar_app": "fechando {nome}", "abrir_site": "abrindo {url}",
@@ -298,11 +455,13 @@ class Assistente:
         "rolar": "rolando pra {direcao}", "focar_janela": "indo pra janela {nome}", "info_sistema": "checando o PC…",
         "volume": "volume: {acao}", "controle_midia": "mídia: {acao}", "timer": "timer de {minutos} min",
         "criar_nota": "anotando…", "lembrar": "guardando na memória…", "energia": "{acao} o PC",
+        "salvar_habilidade": "aprendendo {nome}", "executar_habilidade": "rodando {nome}",
+        "agendar": "agendando pras {hora}", "listar_agendamentos": "vendo a agenda…",
     }
 
     def _ao_usar_ferramenta(self, nome: str, args: dict) -> None:
         if nome == "_fala":
-            self.evento("athena", args.get("texto", ""))
+            self.evento("atena", args.get("texto", ""))
             return
         modelo = self._ROTULOS.get(nome, nome)
         try:
@@ -312,10 +471,13 @@ class Assistente:
         self.evento("acao", f"▸ {rotulo}")
 
     def _confirmar(self, pergunta: str) -> bool:
+        if self.canal is not None:
+            self.evento("atena", pergunta)
+            return self.canal.confirmar(pergunta)
         self.falar(pergunta)
         if self._origem_texto or self.ouvido is None:
             try:
-                resp = self._textos.get(timeout=30)
+                resp = self._textos.get(timeout=30)[0]
             except queue.Empty:
                 return False
         else:

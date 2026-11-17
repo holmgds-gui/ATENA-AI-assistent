@@ -16,13 +16,13 @@ from .painel import Painel
 
 
 class Ponte(QObject):
-    """Leva os eventos da thread da ATHENA pra thread da interface (com segurança)."""
+    """Leva os eventos da thread da ATENA pra thread da interface (com segurança)."""
     evento = Signal(str, object)
     chamar = Signal()
     panico = Signal()
 
 
-def icone_athena(tamanho=64) -> QIcon:
+def icone_atena(tamanho=64) -> QIcon:
     """Ícone: anel de holograma na cor de destaque."""
     pm = QPixmap(tamanho, tamanho)
     pm.fill(Qt.transparent)
@@ -57,15 +57,15 @@ def _converter_atalho(texto: str) -> str:
     return "+".join(partes)
 
 
-class AppAthena:
+class AppAtena:
     def __init__(self, argv, usar_microfone=True):
         self.qt = QApplication(argv)
         self.qt.setQuitOnLastWindowClosed(False)
-        self.qt.setApplicationName("ATHENA")
+        self.qt.setApplicationName("ATENA")
         tema.carregar_fontes()
         self.config = Config()
         self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
-        self.qt.setWindowIcon(icone_athena())
+        self.qt.setWindowIcon(icone_atena())
 
         self.ponte = Ponte()
         self.ponte.evento.connect(self._ao_evento)
@@ -90,8 +90,8 @@ class AppAthena:
 
     # ------------------------------------------------------------------
     def _criar_bandeja(self):
-        self.bandeja = QSystemTrayIcon(icone_athena(), self.qt)
-        self.bandeja.setToolTip("ATHENA")
+        self.bandeja = QSystemTrayIcon(icone_atena(), self.qt)
+        self.bandeja.setToolTip("ATENA")
         menu = QMenu()
         for texto, fn in (("Chamar", self.assistente.chamar), ("Configurações", self.abrir_painel),
                           ("Mostrar/esconder orbe", self._alternar_orbe),
@@ -144,7 +144,7 @@ class AppAthena:
 
     def abrir_painel(self):
         if self.painel is None:
-            self.painel = Painel(self.config, self.assistente.cerebro)
+            self.painel = Painel(self.config, self.assistente.cerebro, self.assistente)
             self.painel.enviar_texto.connect(self.assistente.enviar_texto)
             self.painel.salvo.connect(self._config_salva)
             self.painel.cores_mudaram.connect(self.orbe.orbe.set_cores)
@@ -182,7 +182,7 @@ class AppAthena:
                 self.painel.adicionar_mensagem("acao", dados)
         elif tipo == "mira" and isinstance(dados, dict):
             self.mira.apontar(int(dados["x"]), int(dados["y"]), dados.get("rotulo", ""))
-        elif tipo in ("voce", "athena"):
+        elif tipo in ("voce", "atena"):
             self.orbe.mostrar_texto(dados, tipo)
             if self.painel is not None:
                 self.painel.adicionar_mensagem(tipo, dados)
@@ -215,5 +215,5 @@ class AppAthena:
 
 def main(argv=None):
     argv = argv if argv is not None else sys.argv
-    app = AppAthena(argv, usar_microfone="--sem-microfone" not in argv)
+    app = AppAtena(argv, usar_microfone="--sem-microfone" not in argv)
     sys.exit(app.rodar())

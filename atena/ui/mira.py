@@ -1,4 +1,4 @@
-"""Mira holográfica: aparece onde a ATHENA vai clicar, pra você ver o que ela está fazendo."""
+"""Mira holográfica: aparece onde a ATENA vai clicar, pra você ver o que ela está fazendo."""
 from __future__ import annotations
 
 import math

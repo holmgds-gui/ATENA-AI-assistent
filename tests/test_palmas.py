@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from athena.palmas import DetectorPalmas  # noqa: E402
+from atena.palmas import DetectorPalmas  # noqa: E402
 
 TAXA = 16000
 rng = np.random.default_rng(1)

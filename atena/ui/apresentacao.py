@@ -1,4 +1,4 @@
-"""Apresentação da 1ª vez: carrossel explicando a ATHENA + configuração (nome, personalidade,
+"""Apresentação da 1ª vez: carrossel explicando a ATENA + configuração (nome, personalidade,
 permissões e voz). Mesmo esquema do Muscle Atlas: barrinhas no topo, 'Pular', Voltar/Próximo.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ def _rotulo(texto, nome="subtitulo", wrap=True, centro=True):
 
 
 def _balao(texto, de_quem="voce"):
-    quem = "VOCÊ ›" if de_quem == "voce" else "ATHENA ›"
+    quem = "VOCÊ ›" if de_quem == "voce" else "ATENA ›"
     cor_q = tema.APAGADO if de_quem == "voce" else tema.DESTAQUE
     l = QLabel(f'<span style="font-family:\'Share Tech Mono\'; font-size:10px; color:{cor_q}; letter-spacing:1px">'
                f'{quem}</span><br>{texto}')
@@ -85,7 +85,7 @@ class Apresentacao(QDialog):
         self.config = config
         self.so_carrossel = so_carrossel
         self.setObjectName("janela")
-        self.setWindowTitle("Bem-vindo à ATHENA")
+        self.setWindowTitle("Bem-vindo à ATENA")
         self.setFixedSize(480, 760)
 
         raiz = QVBoxLayout(self)
@@ -138,7 +138,7 @@ class Apresentacao(QDialog):
         p = Pagina("", "")
         orbe = Orbe(210, *tema.cores_da_config(cfg))
         p.lay.addWidget(orbe, 0, Qt.AlignHCenter)
-        marca = QLabel(f'ATHE<span style="color:{tema.DESTAQUE}">NA</span>')
+        marca = QLabel(f'ATE<span style="color:{tema.DESTAQUE}">NA</span>')
         marca.setAlignment(Qt.AlignHCenter)
         marca.setStyleSheet(f"font-family:{tema.FONTE_TITULO}; font-size:38px; font-weight:800; letter-spacing:10px;")
         p.lay.addWidget(marca)
@@ -152,11 +152,11 @@ class Apresentacao(QDialog):
         p = Pagina("É só chamar", "Fale <b>“Atena”</b> e peça o que quiser, numa frase só, ou "
                                   "<b>bata 2 palmas</b>: o holograma surge e ela espera seu pedido. "
                                   "Também dá pra usar o atalho <b>Ctrl+Alt+A</b>.")
-        for txt, quem in (("Atena, abre o Spotify", "voce"), ("Abrindo o Spotify.", "athena"),
+        for txt, quem in (("Atena, abre o Spotify", "voce"), ("Abrindo o Spotify.", "atena"),
                           ("Atena, quanto tá o dólar hoje?", "voce"),
-                          ("Pesquisei aqui: o dólar está em…", "athena"),
+                          ("Pesquisei aqui: o dólar está em…", "atena"),
                           ("Atena, me lembra de beber água em 30 minutos", "voce"),
-                          ("Timer criado. Hidratação também é eficiência.", "athena")):
+                          ("Timer criado. Hidratação também é eficiência.", "atena")):
             p.lay.addLayout(_balao(txt, quem))
         p.lay.addWidget(_rotulo("Depois que ela responde, continua ouvindo por alguns segundos, "
                                 "então dá pra emendar outro pedido sem chamar de novo.", "apagado"))
@@ -187,7 +187,7 @@ class Apresentacao(QDialog):
 
         # 4. privacidade
         p = Pagina("Roda no seu computador",
-                   "O cérebro da ATHENA é uma IA <b>local</b> (Ollama): suas conversas ficam no seu PC "
+                   "O cérebro da ATENA é uma IA <b>local</b> (Ollama): suas conversas ficam no seu PC "
                    "e não tem mensalidade.")
         for t in ("Só vai pra internet o que precisa: pesquisas e a geração da voz.",
                   "Você escolhe o que ela pode fazer no PC na tela de permissões.",
@@ -210,8 +210,8 @@ class Apresentacao(QDialog):
         self.campo_nome.textChanged.connect(self._atualizar_botoes)
         p.lay.addWidget(self.campo_nome)
         p.lay.addWidget(rotulo_secao("Nome da assistente"))
-        self.campo_ia = QLineEdit(cfg.personalidade.get("nome", "ATHENA"))
-        self.campo_ia.setPlaceholderText("ATHENA")
+        self.campo_ia = QLineEdit(cfg.personalidade.get("nome", "ATENA"))
+        self.campo_ia.setPlaceholderText("ATENA")
         p.lay.addWidget(self.campo_ia)
         p.lay.addWidget(_rotulo("Se mudar o nome, mude também a palavra de ativação nas Configurações.",
                                 "apagado", centro=False))
@@ -227,7 +227,7 @@ class Apresentacao(QDialog):
         self.pilha.addWidget(p)
 
         # 7. permissões
-        p = Pagina("Permissões", "O que a ATHENA pode fazer no seu computador?", centralizar=False)
+        p = Pagina("Permissões", "O que a ATENA pode fazer no seu computador?", centralizar=False)
         self.sel_perm = ListaPermissoes(cfg.get("permissoes", {}), cfg.get("seguranca.autonomia"))
         p.lay.addWidget(self.sel_perm)
         p.fechar()
@@ -253,6 +253,31 @@ class Apresentacao(QDialog):
             p.lay.addWidget(l)
         self.dica_final = _rotulo("", "apagado", centro=False)
         p.lay.addWidget(self.dica_final)
+        from PySide6.QtWidgets import QComboBox
+        self.caixa_instalar = QWidget()
+        self.caixa_instalar.setObjectName("transparente")
+        ci = QVBoxLayout(self.caixa_instalar)
+        ci.setContentsMargins(0, 0, 0, 0)
+        ci.addWidget(rotulo_secao("Cérebro de IA"))
+        self.combo_modelo = QComboBox()
+        for m, d in (("qwen3-vl:8b", "qwen3-vl:8b  ·  placa de vídeo com 10 GB+  (~6 GB)"),
+                     ("qwen3-vl:4b", "qwen3-vl:4b  ·  placa com 6–8 GB  (~3,3 GB)"),
+                     ("qwen3-vl:2b", "qwen3-vl:2b  ·  placa fraca / sem placa  (~2 GB)")):
+            self.combo_modelo.addItem(d, m)
+        self.combo_modelo.setCurrentIndex(1)
+        ci.addWidget(self.combo_modelo)
+        linha_b = QHBoxLayout()
+        self.b_ollama = QPushButton("INSTALAR OLLAMA")
+        self.b_ollama.clicked.connect(lambda: self._terminal("winget install -e --id Ollama.Ollama "
+                                                             "--accept-package-agreements --accept-source-agreements"))
+        self.b_modelo = QPushButton("BAIXAR MODELO")
+        self.b_modelo.clicked.connect(self._baixar_modelo)
+        b_rever = QPushButton("VERIFICAR DE NOVO")
+        b_rever.clicked.connect(self._reverificar)
+        for b in (self.b_ollama, self.b_modelo, b_rever):
+            linha_b.addWidget(b)
+        ci.addLayout(linha_b)
+        p.lay.addWidget(self.caixa_instalar)
         p.fechar()
         self.pilha.addWidget(p)
 
@@ -321,11 +346,31 @@ class Apresentacao(QDialog):
     # ------------------------------------------------------------------ verificação e salvar
     _resultado = Signal(dict)
 
+    def _terminal(self, comando: str):
+        import subprocess
+        import sys
+        if sys.platform == "win32":
+            subprocess.Popen(["cmd", "/c", "start", "ATENA - instalando", "cmd", "/k", comando])
+        else:
+            print(f"[instalar] rode no terminal: {comando}")
+
+    def _baixar_modelo(self):
+        m = self.combo_modelo.currentData()
+        self.config.salvar_geral({"cerebro": {"modelo": m}, "visao": {"modelo": m}})
+        self._terminal(f"ollama pull {m} && echo. && echo Pronto! Pode fechar esta janela e clicar em VERIFICAR DE NOVO.")
+
+    def _reverificar(self):
+        self._verificando = False
+        self.status_final.setText("Conferindo de novo…")
+        self._verificar()
+
     def _verificar(self):
         if getattr(self, "_verificando", False):
             return
         self._verificando = True
-        self._resultado.connect(self._mostrar_verificacao)
+        if not getattr(self, "_conectado_resultado", False):
+            self._resultado.connect(self._mostrar_verificacao)
+            self._conectado_resultado = True
 
         def rodar():
             import requests
@@ -357,14 +402,17 @@ class Apresentacao(QDialog):
                      else f'<span style="color:{tema.PERIGO}">[ !! ]</span>')
             l.setText(f"{icone}&nbsp; {l.property('texto').upper()}")
         if not r.get("ollama"):
-            dicas.append("Instale e abra o Ollama (ollama.com). Sem ele, só os comandos rápidos funcionam.")
+            dicas.append("O Ollama (cérebro) não está rodando. Clique em INSTALAR OLLAMA, ou abra ele se já tiver.")
         elif not r.get("modelo"):
-            dicas.append(f"Baixe o modelo: abra o terminal e rode  <b>ollama pull {r['_modelo']}</b>")
+            dicas.append("Falta baixar o modelo de IA: escolha o tamanho abaixo e clique em BAIXAR MODELO.")
         if not r.get("mic"):
             dicas.append("Nenhum microfone encontrado. Você ainda pode escrever pra ela no painel.")
         if not r.get("vosk"):
-            dicas.append("Rode o instalar.bat pra baixar o detector de “Atena”. Sem ele, ela gasta mais CPU ouvindo.")
+            dicas.append("Detector de “Atena” não encontrado. Ela funciona, mas gasta mais CPU ouvindo.")
         self.status_final.setText("Faltam alguns detalhes, mas dá pra começar:" if dicas else "Tudo instalado.")
+        self.b_ollama.setVisible(not r.get("ollama"))
+        self.b_modelo.setVisible(bool(r.get("ollama")) and not r.get("modelo"))
+        self.caixa_instalar.setVisible(not (r.get("ollama") and r.get("modelo")))
         self.dica_final.setText("<br><br>".join(dicas) if dicas else
                                 f'<span style="color:{tema.OK}">Tudo certo. Diga “Atena” quando quiser.</span>')
 
@@ -374,7 +422,7 @@ class Apresentacao(QDialog):
         pers = self.sel_pers.valores()
         self.config.salvar_personalidade({
             "como_me_chamar": self.campo_nome.text().strip(),
-            "nome": self.campo_ia.text().strip() or "ATHENA",
+            "nome": self.campo_ia.text().strip() or "ATENA",
             **pers,
         })
         geral = {**self.sel_perm.valores(), **self.sel_voz.valores(), "primeira_vez": False}

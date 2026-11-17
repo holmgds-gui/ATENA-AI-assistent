@@ -1,4 +1,4 @@
-"""Visual HUD sci-fi da ATHENA: fundo com grade, bordas angulares, fontes tech e cor de destaque da paleta."""
+"""Visual HUD sci-fi da ATENA: fundo com grade, bordas angulares, fontes tech e cor de destaque da paleta."""
 from __future__ import annotations
 
 from pathlib import Path

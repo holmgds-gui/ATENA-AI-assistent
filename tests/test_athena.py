@@ -1,4 +1,4 @@
-"""Testes da lógica da ATHENA (sem microfone, sem Ollama de verdade).
+"""Testes da lógica da ATENA (sem microfone, sem Ollama de verdade).
 
 Rodar:  python -m pytest -q
 """
@@ -10,19 +10,19 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-os.environ["ATHENA_DADOS"] = tempfile.mkdtemp(prefix="athena_teste_")
+os.environ["ATENA_DADOS"] = tempfile.mkdtemp(prefix="atena_teste_")
 
-from athena import atalhos, cerebro, ferramentas, sistema  # noqa: E402
-from athena.config import Config  # noqa: E402
+from atena import atalhos, cerebro, ferramentas, sistema  # noqa: E402
+from atena.config import Config  # noqa: E402
 
 
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
-    monkeypatch.setattr("athena.config.PASTA_USUARIO", tmp_path)
-    monkeypatch.setattr("athena.config.ARQ_CONFIG", tmp_path / "config.yaml")
-    monkeypatch.setattr("athena.config.ARQ_PERSONALIDADE", tmp_path / "personalidade.yaml")
-    monkeypatch.setattr("athena.config.ARQ_APPS", tmp_path / "apps.yaml")
-    monkeypatch.setattr("athena.config.ARQ_MEMORIA", tmp_path / "memoria.json")
+    monkeypatch.setattr("atena.config.PASTA_USUARIO", tmp_path)
+    monkeypatch.setattr("atena.config.ARQ_CONFIG", tmp_path / "config.yaml")
+    monkeypatch.setattr("atena.config.ARQ_PERSONALIDADE", tmp_path / "personalidade.yaml")
+    monkeypatch.setattr("atena.config.ARQ_APPS", tmp_path / "apps.yaml")
+    monkeypatch.setattr("atena.config.ARQ_MEMORIA", tmp_path / "memoria.json")
     c = Config()
     c.salvar_personalidade({"como_me_chamar": "Gui"})
     return c
@@ -170,10 +170,10 @@ def test_limpar_para_fala():
 
 # ---------------------------------------------------------------- ouvido (palavra de ativação)
 def test_palavra_ativacao(cfg):
-    from athena.ouvido import Ouvido
+    from atena.ouvido import Ouvido
     o = Ouvido(cfg, log=lambda *_: None)
     assert o.contem_palavra("Atena, abre o Spotify.") == (True, "abre o Spotify")
-    assert o.contem_palavra("Athena que horas são") == (True, "que horas são")
+    assert o.contem_palavra("Atena que horas são") == (True, "que horas são")
     assert o.contem_palavra("Ei, Atena!")[0]
     assert not o.contem_palavra("eu fui pra Atenas ontem e voltei")[0] or True  # tolerância a erro
     assert not o.contem_palavra("abre o spotify")[0]
@@ -193,7 +193,7 @@ def test_indice_apps_procura():
 
 # ---------------------------------------------------------------- rotina das palmas
 def test_rotina_palmas(cfg, chamadas):
-    from athena.assistente import Assistente
+    from atena.assistente import Assistente
     import time as _t
     cfg.salvar_geral({"rotina_palmas": {"frase": "Bem-vindo, {nome}.", "apps": ["spotify", "discord"],
                                         "sites": ["youtube"], "musica": "back in black", "ouvir_depois": False}})
@@ -209,7 +209,7 @@ def test_rotina_palmas(cfg, chamadas):
 
 
 def test_rotina_palmas_vazia_so_cumprimenta(cfg, chamadas):
-    from athena.assistente import Assistente
+    from atena.assistente import Assistente
     a = Assistente(cfg, usar_microfone=False)
     falas = []
     a.voz.falar = lambda t, ao_comecar=None: falas.append(t)

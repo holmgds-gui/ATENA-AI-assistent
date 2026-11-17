@@ -1,4 +1,4 @@
-"""Lógica dos 'olhos' da ATHENA, sem precisar de Windows nem de tela."""
+"""Lógica dos 'olhos' da ATENA, sem precisar de Windows nem de tela."""
 import os
 import sys
 import tempfile
@@ -8,10 +8,10 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-os.environ.setdefault("ATHENA_DADOS", tempfile.mkdtemp(prefix="athena_teste_"))
+os.environ.setdefault("ATENA_DADOS", tempfile.mkdtemp(prefix="atena_teste_"))
 
-from athena import cerebro, ferramentas, visao  # noqa: E402
-from athena.visao import Elemento, achar, interpretar_ponto, mesclar, parece_perigoso  # noqa: E402
+from atena import cerebro, ferramentas, visao  # noqa: E402
+from atena.visao import Elemento, achar, interpretar_ponto, mesclar, parece_perigoso  # noqa: E402
 
 UI = [("Enviar", "ButtonControl", 900, 700, 80, 30), ("Digite uma mensagem", "EditControl", 300, 700, 500, 30),
       ("Configurações", "MenuItemControl", 10, 40, 120, 24), ("Excluir conversa", "MenuItemControl", 10, 70, 140, 24)]
@@ -103,9 +103,9 @@ class Resp:
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):
     for nome in ("config", "personalidade", "apps"):
-        monkeypatch.setattr(f"athena.config.ARQ_{nome.upper()}", tmp_path / f"{nome}.yaml")
-    monkeypatch.setattr("athena.config.ARQ_MEMORIA", tmp_path / "memoria.json")
-    from athena.config import Config
+        monkeypatch.setattr(f"atena.config.ARQ_{nome.upper()}", tmp_path / f"{nome}.yaml")
+    monkeypatch.setattr("atena.config.ARQ_MEMORIA", tmp_path / "memoria.json")
+    from atena.config import Config
     c = Config()
     c.salvar_personalidade({"como_me_chamar": "Gui"})
     return c

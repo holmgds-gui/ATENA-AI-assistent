@@ -1,4 +1,4 @@
-"""Os "olhos" da ATHENA. Três camadas, da mais precisa pra mais esperta:
+"""Os "olhos" da ATENA. Três camadas, da mais precisa pra mais esperta:
 
 1. Acessibilidade do Windows (UI Automation): lista botões, campos, abas e menus da janela ativa,
    com nome e posição exata. É como o leitor de tela do Windows enxerga.
@@ -6,7 +6,7 @@
 3. IA de visão (Qwen3-VL no Ollama): olha a captura de tela inteira, descreve o que tem nela e
    acha ícones/imagens sem texto.
 
-Cada elemento encontrado ganha um número. A IA diz "clica no 12" e a ATHENA clica no lugar certo.
+Cada elemento encontrado ganha um número. A IA diz "clica no 12" e a ATENA clica no lugar certo.
 """
 from __future__ import annotations
 

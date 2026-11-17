@@ -1,4 +1,4 @@
-"""Holograma da ATHENA: globo de malha 3D, anéis de giroscópio, rede neural e partículas.
+"""Holograma da ATENA: globo de malha 3D, anéis de giroscópio, rede neural e partículas.
 
 Tudo é desenhado com linhas e luz (mistura aditiva), sem esfera sólida.
 A cor vem da paleta escolhida nas configurações.

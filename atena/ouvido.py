@@ -1,4 +1,4 @@
-"""O ouvido da ATHENA: microfone, palavra de ativação ("Atena") e transcrição da fala.
+"""O ouvido da ATENA: microfone, palavra de ativação ("Atena") e transcrição da fala.
 
 Como funciona:
 1. O microfone fica sempre aberto, mas só o Vosk (leve, offline) escuta, procurando a palavra "atena".

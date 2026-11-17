@@ -2,11 +2,11 @@
 chcp 65001 >nul
 setlocal EnableDelayedExpansion
 cd /d "%~dp0"
-title Instalador da ATHENA
+title Instalador da ATENA
 
 echo.
 echo   ============================================
-echo      ATHENA - instalador
+echo      ATENA - instalador
 echo   ============================================
 echo.
 
@@ -48,7 +48,7 @@ if not exist "modelos\vosk-pt" (
     echo [3/5] Baixando o detector da palavra "Atena" ^(~30 MB^)...
     if not exist modelos mkdir modelos
     powershell -NoProfile -Command "$ProgressPreference='SilentlyContinue'; Invoke-WebRequest 'https://alphacephei.com/vosk/models/vosk-model-small-pt-0.3.zip' -OutFile 'modelos\vosk.zip'; Expand-Archive 'modelos\vosk.zip' -DestinationPath 'modelos' -Force; Remove-Item 'modelos\vosk.zip'; Rename-Item 'modelos\vosk-model-small-pt-0.3' 'vosk-pt'"
-    if not exist "modelos\vosk-pt" echo [!] Nao consegui baixar. A ATHENA funciona mesmo assim, so gasta mais CPU ouvindo.
+    if not exist "modelos\vosk-pt" echo [!] Nao consegui baixar. A ATENA funciona mesmo assim, so gasta mais CPU ouvindo.
 ) else (
     echo [3/5] Detector da palavra "Atena" ja instalado.
 )
@@ -57,7 +57,7 @@ REM ---------- 4. Ollama (cerebro) ----------
 where ollama >nul 2>nul
 if errorlevel 1 (
     echo.
-    echo [4/5] O Ollama ^(cerebro da ATHENA^) nao esta instalado.
+    echo [4/5] O Ollama ^(cerebro da ATENA^) nao esta instalado.
     where winget >nul 2>nul && (
         choice /c SN /m "      Instalar agora pelo winget"
         if !errorlevel! equ 1 winget install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements
@@ -82,7 +82,7 @@ if %errorlevel% equ 2 set "MODELO=qwen3-vl:4b"
 if %errorlevel% equ 3 set "MODELO=qwen3-vl:2b"
 if defined MODELO (
     ollama pull %MODELO%
-    ".venv\Scripts\python.exe" -c "from athena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '%MODELO%'}, 'visao': {'modelo': '%MODELO%'}})"
+    ".venv\Scripts\python.exe" -c "from atena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '%MODELO%'}, 'visao': {'modelo': '%MODELO%'}})"
 )
 
 REM ---------- Extra: sensores de temperatura ----------
@@ -99,15 +99,15 @@ where winget >nul 2>nul && (
 REM ---------- 5. Atalhos ----------
 echo.
 echo [5/5] Criando atalho na Area de Trabalho...
-powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\ATHENA.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0main.py\"'; $s.WorkingDirectory='%~dp0'; $s.Description='ATHENA'; $s.Save()"
-choice /c SN /m "      Abrir a ATHENA junto com o Windows"
+powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Desktop')+'\ATENA.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0main.py\"'; $s.WorkingDirectory='%~dp0'; $s.Description='ATENA'; $s.Save()"
+choice /c SN /m "      Abrir a ATENA junto com o Windows"
 if %errorlevel% equ 1 (
-    powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\ATHENA.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0main.py\"'; $s.WorkingDirectory='%~dp0'; $s.Save()"
+    powershell -NoProfile -Command "$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath('Startup')+'\ATENA.lnk'); $s.TargetPath='%~dp0.venv\Scripts\pythonw.exe'; $s.Arguments='\"%~dp0main.py\"'; $s.WorkingDirectory='%~dp0'; $s.Save()"
 )
 
 echo.
 echo   ============================================
-echo      Pronto! Abra a ATHENA pelo atalho na
+echo      Pronto! Abra a ATENA pelo atalho na
 echo      Area de Trabalho ou pelo iniciar.bat
 echo   ============================================
 echo.

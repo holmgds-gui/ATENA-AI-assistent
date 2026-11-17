@@ -1,4 +1,4 @@
-"""A voz da ATHENA (texto -> fala).
+"""A voz da ATENA (texto -> fala).
 
 - edge: vozes neurais grátis da Microsoft (Francisca, Thalita, Antonio). Precisa de internet.
 - offline: voz do próprio Windows (pyttsx3). Mais robótica, mas funciona sem internet.
@@ -105,7 +105,7 @@ class Voz:
     def _falar_edge(self, texto: str, ao_comecar) -> None:
         # Gera frase por frase: a primeira começa a tocar enquanto as outras são geradas.
         frases = dividir_frases(texto) or [texto]
-        pasta = tempfile.mkdtemp(prefix="athena_")
+        pasta = tempfile.mkdtemp(prefix="atena_")
         arquivos: list[str | None] = [None] * len(frases)
         erros: list[Exception] = []
         prontos = [threading.Event() for _ in frases]

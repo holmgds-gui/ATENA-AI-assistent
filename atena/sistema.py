@@ -58,7 +58,7 @@ class IndiceApps:
                 self.apps = self._apps_mac()
             else:
                 self.apps = self._apps_linux()
-        except Exception as e:  # nunca deixa a ATHENA cair por causa disso
+        except Exception as e:  # nunca deixa a ATENA cair por causa disso
             print(f"[apps] não consegui listar os apps: {e}")
             self.apps = []
         self.carregado = True
@@ -341,6 +341,6 @@ def info_sistema() -> dict:
 
 
 def pasta_documentos() -> str:
-    pasta = os.path.join(os.path.expanduser("~"), "Documents", "ATHENA")
+    pasta = os.path.join(os.path.expanduser("~"), "Documents", "ATENA")
     os.makedirs(pasta, exist_ok=True)
     return pasta

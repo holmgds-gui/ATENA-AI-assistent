@@ -1,4 +1,4 @@
-"""Painel de configurações da ATHENA (abre pelo botão direito no orbe ou pela bandeja)."""
+"""Painel de configurações da ATENA (abre pelo botão direito no orbe ou pela bandeja)."""
 from __future__ import annotations
 
 import threading
@@ -37,8 +37,9 @@ def _secao(texto):
     return rotulo_secao(texto)
 
 
-PAGINAS = [("01", "Conversa"), ("02", "Sistema"), ("03", "Personalidade"), ("04", "Permissões"),
-           ("05", "Aparência"), ("06", "Voz"), ("07", "Cérebro"), ("08", "Memória"), ("09", "Sobre")]
+PAGINAS = [("01", "Conversa"), ("02", "Sistema"), ("03", "Habilidades"), ("04", "Rotinas"), ("05", "Celular"),
+           ("06", "Personalidade"), ("07", "Permissões"), ("08", "Aparência"), ("09", "Voz"), ("10", "Cérebro"),
+           ("11", "Memória"), ("12", "Sobre")]
 
 
 class Painel(FundoHud):
@@ -49,10 +50,11 @@ class Painel(FundoHud):
     _modelos_prontos = Signal(list)
     _status_cerebro = Signal(bool)
 
-    def __init__(self, config, cerebro=None):
+    def __init__(self, config, cerebro=None, assistente=None):
         super().__init__()
         self.config = config
         self.cerebro = cerebro
+        self.assistente = assistente
         self.setObjectName("janela")
         self.setWindowTitle(f"{config.nome_ia} — Painel de controle")
         self.resize(1080, 760)
@@ -107,6 +109,7 @@ class Painel(FundoHud):
         for i, (cod, nome) in enumerate(PAGINAS):
             b = BotaoNav(cod, nome)
             b.setFixedWidth(200)
+            b.setFixedHeight(38)
             b.clicado.connect(lambda i=i: self.ir_para(i))
             lateral.addWidget(b)
             self.botoes_nav.append(b)
@@ -128,9 +131,9 @@ class Painel(FundoHud):
         self.paginas = QStackedWidget()
         from .aba_sistema import AbaSistema
         self.aba_sistema = AbaSistema()
-        for w in (self._aba_conversa(), self.aba_sistema, self._aba_personalidade(), self._aba_permissoes(),
-                  self._aba_aparencia(), self._aba_voz_ouvido(), self._aba_cerebro(), self._aba_memoria(),
-                  self._aba_sobre()):
+        for w in (self._aba_conversa(), self.aba_sistema, self._aba_habilidades(), self._aba_rotinas(),
+                  self._aba_celular(), self._aba_personalidade(), self._aba_permissoes(), self._aba_aparencia(),
+                  self._aba_voz_ouvido(), self._aba_cerebro(), self._aba_memoria(), self._aba_sobre()):
             self.paginas.addWidget(w)
         corpo.addWidget(self.paginas, 1)
         raiz.addLayout(corpo, 1)
@@ -145,6 +148,11 @@ class Painel(FundoHud):
 
     def ir_para(self, i: int):
         self.paginas.setCurrentIndex(i)
+        nome = PAGINAS[i][1]
+        if nome == "Habilidades":
+            self._carregar_hab()
+        elif nome == "Rotinas":
+            self._carregar_rot()
         for k, b in enumerate(self.botoes_nav):
             b.ativo = k == i
             b.update()
@@ -156,6 +164,7 @@ class Painel(FundoHud):
     def _tique(self):
         import datetime as _dt
         self.relogio.setText(_dt.datetime.now().strftime("%H:%M:%S"))
+        self._atualizar_tg()
         if self.cerebro is not None and int(time.time()) % 10 == 0:
             threading.Thread(target=lambda: self._status_cerebro.emit(self.cerebro.esta_online()), daemon=True).start()
 
@@ -188,6 +197,214 @@ class Painel(FundoHud):
         lay.addLayout(h)
         return w
 
+    # ---------------- habilidades
+    def _aba_habilidades(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        dica = QLabel("Rotinas que a ATENA aprendeu. Depois de uma tarefa com vários passos ela pergunta se quer "
+                      "salvar, ou você pede direto: <i>“Atena, cria a habilidade modo estudo que abre o Notion e toca "
+                      "lo-fi”</i>. Pra usar, é só falar o nome.")
+        dica.setObjectName("subtitulo")
+        dica.setWordWrap(True)
+        lay.addWidget(dica)
+        self.lista_hab = QListWidget()
+        self.lista_hab.setMinimumHeight(340)
+        self.lista_hab.setWordWrap(True)
+        lay.addWidget(self.lista_hab)
+        h = QHBoxLayout()
+        b1 = QPushButton("▶ RODAR")
+        b1.clicked.connect(self._rodar_hab)
+        b2 = QPushButton("APAGAR")
+        b2.clicked.connect(self._apagar_hab)
+        h.addWidget(b1)
+        h.addWidget(b2)
+        h.addStretch(1)
+        lay.addLayout(h)
+        return _rolavel(w, "Habilidades aprendidas")
+
+    def _carregar_hab(self):
+        if not hasattr(self, "lista_hab"):
+            return
+        from ..habilidades import Habilidades, descrever_passos
+        from ..config import PASTA_USUARIO
+        hab = self.assistente.habilidades if self.assistente else Habilidades(PASTA_USUARIO)
+        hab.carregar()
+        self.lista_hab.clear()
+        for h in hab.lista:
+            self.lista_hab.addItem(f"{h['nome'].upper()}   ·   {descrever_passos(h['passos'])}   ·   usada {h.get('usos', 0)}x")
+            self.lista_hab.item(self.lista_hab.count() - 1).setData(Qt.UserRole, h["nome"])
+        if not hab.lista:
+            self.lista_hab.addItem("Nenhuma habilidade ainda.")
+
+    def _rodar_hab(self):
+        it = self.lista_hab.currentItem()
+        if it and it.data(Qt.UserRole) and self.assistente:
+            self.assistente.enviar_texto(it.data(Qt.UserRole))
+
+    def _apagar_hab(self):
+        it = self.lista_hab.currentItem()
+        if it and it.data(Qt.UserRole) and self.assistente:
+            self.assistente.habilidades.apagar(it.data(Qt.UserRole))
+            self._carregar_hab()
+
+    # ---------------- rotinas agendadas
+    def _aba_rotinas(self):
+        from PySide6.QtCore import QTime
+        from PySide6.QtWidgets import QTimeEdit
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        dica = QLabel("Coisas que ela faz sozinha no horário. Também dá pra pedir por voz: "
+                      "<i>“Atena, todo dia às 7 me dá o resumo do dia”</i>.")
+        dica.setObjectName("subtitulo")
+        dica.setWordWrap(True)
+        lay.addWidget(dica)
+        self.lista_rot = QListWidget()
+        self.lista_rot.setMinimumHeight(240)
+        lay.addWidget(self.lista_rot)
+        lay.addWidget(_secao("Nova rotina"))
+        form = QFormLayout()
+        self.rot_hora = QTimeEdit(QTime(7, 0))
+        self.rot_hora.setDisplayFormat("HH:mm")
+        form.addRow("Horário", self.rot_hora)
+        self.rot_rep = QComboBox()
+        for chave, nome in (("todo_dia", "Todo dia"), ("dias_uteis", "Dias úteis (seg–sex)"),
+                            ("fim_de_semana", "Fim de semana"), ("nao", "Só uma vez")):
+            self.rot_rep.addItem(nome, chave)
+        form.addRow("Repetir", self.rot_rep)
+        self.rot_pedido = QLineEdit()
+        self.rot_pedido.setPlaceholderText("o que ela deve fazer, ex: me dá o resumo do dia  /  modo estudo")
+        form.addRow("Pedido", self.rot_pedido)
+        lay.addLayout(form)
+        h = QHBoxLayout()
+        add = QPushButton("+ ADICIONAR")
+        add.setObjectName("primario")
+        add.clicked.connect(self._add_rotina)
+        rem = QPushButton("APAGAR SELECIONADA")
+        rem.clicked.connect(self._apagar_rotina)
+        h.addWidget(add)
+        h.addWidget(rem)
+        h.addStretch(1)
+        lay.addLayout(h)
+        return _rolavel(w, "Rotinas agendadas")
+
+    def _agenda(self):
+        if self.assistente:
+            return self.assistente.agenda
+        from ..agenda import Agenda
+        from ..config import PASTA_USUARIO
+        return Agenda(PASTA_USUARIO)
+
+    def _carregar_rot(self):
+        if not hasattr(self, "lista_rot"):
+            return
+        from ..agenda import descrever
+        ag = self._agenda()
+        self.lista_rot.clear()
+        for r in ag.lista:
+            if r.get("ativa", True):
+                self.lista_rot.addItem(f"⏰  {descrever(r)}")
+                self.lista_rot.item(self.lista_rot.count() - 1).setData(Qt.UserRole, r["id"])
+        if not self.lista_rot.count():
+            self.lista_rot.addItem("Nenhuma rotina agendada.")
+
+    def _add_rotina(self):
+        pedido = self.rot_pedido.text().strip()
+        if not pedido:
+            return
+        rep = self.rot_rep.currentData()
+        ag = self._agenda()
+        hab = self.assistente.habilidades.procurar(pedido) if self.assistente else None
+        ag.adicionar(self.rot_hora.time().toString("HH:mm"), pedido="" if hab else pedido,
+                     habilidade=hab["nome"] if hab else "", dias="" if rep == "nao" else rep)
+        self.rot_pedido.clear()
+        self._carregar_rot()
+
+    def _apagar_rotina(self):
+        it = self.lista_rot.currentItem()
+        if it and it.data(Qt.UserRole):
+            self._agenda().cancelar(it.data(Qt.UserRole))
+            self._carregar_rot()
+
+    # ---------------- celular (Telegram)
+    def _aba_celular(self):
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(10)
+        passos = QLabel(
+            "Fale com a ATENA pelo <b>Telegram</b> de qualquer lugar. Ela executa no PC e responde no chat "
+            "(texto ou áudio).<br><br>"
+            "<b>1.</b> No Telegram, abra o <b>@BotFather</b>, mande <b>/newbot</b> e escolha um nome.<br>"
+            "<b>2.</b> Ele te dá um <b>token</b> (algo como 123456:ABC…). Cole aqui embaixo e clique em CONECTAR.<br>"
+            "<b>3.</b> Abra o seu bot e mande o <b>código de 6 dígitos</b> que vai aparecer aqui.<br><br>"
+            "Comandos no chat: <b>/tela</b> (print da tela) · <b>/pc</b> (status) · <b>/parar</b> (pânico).")
+        passos.setObjectName("subtitulo")
+        passos.setWordWrap(True)
+        lay.addWidget(passos)
+        form = QFormLayout()
+        self.tg_token = QLineEdit(self.config.get("telegram.token") or "")
+        self.tg_token.setEchoMode(QLineEdit.Password)
+        self.tg_token.setPlaceholderText("cole o token do @BotFather")
+        form.addRow("Token do bot", self.tg_token)
+        self.tg_avisar = QCheckBox("Avisar no celular quando uma rotina agendada rodar")
+        self.tg_avisar.setChecked(bool(self.config.get("telegram.avisar_rotinas", True)))
+        form.addRow("", self.tg_avisar)
+        lay.addLayout(form)
+        h = QHBoxLayout()
+        con = QPushButton("CONECTAR ▸")
+        con.setObjectName("primario")
+        con.clicked.connect(self._conectar_tg)
+        des = QPushButton("DESCONECTAR CELULAR")
+        des.clicked.connect(self._desconectar_tg)
+        h.addWidget(con)
+        h.addWidget(des)
+        h.addStretch(1)
+        lay.addLayout(h)
+        self.tg_status = Indicador("Telegram: desligado")
+        self.tg_status.set(None, "Telegram: desligado")
+        lay.addWidget(self.tg_status)
+        lay.addWidget(_secao("Código de pareamento"))
+        self.tg_codigo = QLabel("------")
+        self.tg_codigo.setStyleSheet(f"font-family:{tema.FONTE_MONO}; font-size:42px; letter-spacing:12px;"
+                                     f"color:{tema.DESTAQUE};")
+        lay.addWidget(self.tg_codigo)
+        return _rolavel(w, "Celular · Telegram")
+
+    def _atualizar_tg(self):
+        if not hasattr(self, "tg_status"):
+            return
+        tg = self.assistente.telegram if self.assistente else None
+        if tg is None:
+            self.tg_status.set(None, "Telegram: desligado")
+            self.tg_codigo.setText("------")
+            return
+        self.tg_codigo.setText(tg.codigo)
+        if tg.erro:
+            self.tg_status.set(False, f"Telegram: {tg.erro}")
+        elif tg.conectado and tg.chat:
+            self.tg_status.set(True, f"Conectado ao celular via {tg.nome_bot}")
+            self.tg_codigo.setText("✓ PAREADO")
+        elif tg.conectado:
+            self.tg_status.set(None, f"{tg.nome_bot} online · mande o código pro bot")
+        else:
+            self.tg_status.set(None, "Telegram: conectando…")
+
+    def _conectar_tg(self):
+        self.config.salvar_geral({"telegram": {"token": self.tg_token.text().strip(),
+                                               "avisar_rotinas": self.tg_avisar.isChecked()}})
+        if self.assistente:
+            self.assistente.conectar_telegram()
+        self.aviso.setText("// TELEGRAM CONECTANDO…")
+
+    def _desconectar_tg(self):
+        self.config.salvar_geral({"telegram": {"chat_autorizado": None}})
+        if self.assistente:
+            self.assistente.conectar_telegram()  # novo código de pareamento
+
     def _aba_personalidade(self):
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -195,7 +412,7 @@ class Painel(FundoHud):
         lay.setSpacing(10)
         form = QFormLayout()
         self.nome_usuario = QLineEdit(self.config.personalidade.get("como_me_chamar", ""))
-        self.nome_ia = QLineEdit(self.config.personalidade.get("nome", "ATHENA"))
+        self.nome_ia = QLineEdit(self.config.personalidade.get("nome", "ATENA"))
         form.addRow("Como ela te chama", self.nome_usuario)
         form.addRow("Nome da assistente", self.nome_ia)
         lay.addLayout(form)
@@ -249,7 +466,7 @@ class Painel(FundoHud):
         self.legenda.setChecked(bool(self.config.get("interface.legenda", True)))
         form.addRow("", self.legenda)
         lay.addLayout(form)
-        nota = QLabel("A cor do holograma muda na hora. A cor das janelas muda ao reabrir a ATHENA.")
+        nota = QLabel("A cor do holograma muda na hora. A cor das janelas muda ao reabrir a ATENA.")
         nota.setObjectName("apagado")
         nota.setWordWrap(True)
         lay.addWidget(nota)
@@ -313,7 +530,7 @@ class Painel(FundoHud):
 
         lay.addWidget(_secao("Palmas"))
         fp = QFormLayout()
-        self.palmas_on = QCheckBox("Bater palmas chama a ATHENA")
+        self.palmas_on = QCheckBox("Bater palmas chama a ATENA")
         self.palmas_on.setChecked(bool(self.config.get("ativacao.palmas", True)))
         fp.addRow("", self.palmas_on)
         self.num_palmas = QComboBox()
@@ -370,7 +587,7 @@ class Painel(FundoHud):
         self.atalhos_rapidos.setChecked(bool(self.config.get("atalhos_rapidos", True)))
         form.addRow("", self.atalhos_rapidos)
         lay.addLayout(form)
-        lay.addWidget(QLabel("Mudanças no reconhecimento de fala valem depois de reiniciar a ATHENA.",
+        lay.addWidget(QLabel("Mudanças no reconhecimento de fala valem depois de reiniciar a ATENA.",
                              objectName="apagado"))
         return _rolavel(w, "Voz e ativação")
 
@@ -415,7 +632,7 @@ class Painel(FundoHud):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 0, 0, 0)
-        lay.addWidget(QLabel("Coisas que a ATHENA guardou sobre você. Peça “lembra que…” pra adicionar.",
+        lay.addWidget(QLabel("Coisas que a ATENA guardou sobre você. Peça “lembra que…” pra adicionar.",
                              objectName="apagado", wordWrap=True))
         self.lista_mem = QListWidget()
 
@@ -518,7 +735,7 @@ class Painel(FundoHud):
         pers = self.sel_pers.valores()
         self.config.salvar_personalidade({
             "como_me_chamar": self.nome_usuario.text().strip(),
-            "nome": self.nome_ia.text().strip() or "ATHENA",
+            "nome": self.nome_ia.text().strip() or "ATENA",
             "regras_extras": self.regras.toPlainText().strip(),
             **pers,
         })
