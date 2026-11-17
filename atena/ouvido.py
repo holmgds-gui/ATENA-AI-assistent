@@ -79,12 +79,19 @@ class Ouvido:
 
     def _carregar_whisper(self) -> None:
         try:
+            import os
             from faster_whisper import WhisperModel
-            tamanho = self.config.get("ouvido.modelo_whisper", "small")
+            tamanho = self.config.get("ouvido.modelo_whisper", "base")
             disp = self.config.get("ouvido.dispositivo", "cpu")
-            self.log(f"[ouvido] carregando Whisper '{tamanho}' (a primeira vez baixa o modelo)...")
-            self._whisper = WhisperModel(tamanho, device=disp, compute_type="int8" if disp == "cpu" else "float16")
-            self.log("[ouvido] Whisper pronto")
+            local = self.config.caminho(f"modelos/whisper-{tamanho}")  # vem dentro do instalador
+            origem = str(local) if local.exists() else tamanho
+            inicio = time.time()
+            self.log(f"[ouvido] carregando Whisper '{tamanho}' ({'embutido' if local.exists() else 'baixando na 1ª vez'})")
+            self._whisper = WhisperModel(origem, device=disp, compute_type="int8" if disp == "cpu" else "float16",
+                                         cpu_threads=max(2, min(8, (os.cpu_count() or 4) // 2)))
+            # aquece: a 1ª transcrição é sempre mais lenta, então faz uma "de mentira" agora
+            list(self._whisper.transcribe(np.zeros(TAXA // 2, dtype=np.float32), language="pt", beam_size=1)[0])
+            self.log(f"[ouvido] Whisper pronto em {time.time() - inicio:.1f}s")
         except Exception as e:
             self.log(f"[ouvido] erro ao carregar Whisper: {e}")
         finally:
@@ -225,9 +232,14 @@ class Ouvido:
             if self._vosk.AcceptWaveform(bloco):
                 texto = json.loads(self._vosk.Result()).get("text", "")
                 audio, fala = fala, []
-                if not any(normalizar(a) in texto.split()
-                           for a in self.config.get("ativacao.palavras", ["atena"])):
+                palavras = texto.split()
+                alvos = [normalizar(a) for a in self.config.get("ativacao.palavras", ["atena"])]
+                if not any(a in palavras for a in alvos):
                     continue
+                # Só "Atena" (nada depois): responde NA HORA, sem esperar o Whisper conferir
+                pos = max(i for i, p in enumerate(palavras) if p in alvos)
+                if not palavras[pos + 1:] and len(palavras) <= 2:
+                    return True, ""
                 # Vosk achou. Confere com o Whisper e pega o comando que veio junto.
                 audio += self._continuar_gravando(0.4)
                 frase = self.transcrever(b"".join(audio))
@@ -318,12 +330,14 @@ class Ouvido:
             return ""
         amostras = np.frombuffer(audio, dtype=np.int16).astype(np.float32) / 32768.0
         nome = self.config.nome_ia.capitalize()
+        inicio = time.time()
         segmentos, _ = self._whisper.transcribe(
-            amostras, language="pt", beam_size=3, vad_filter=False,
-            condition_on_previous_text=False,
+            amostras, language="pt", beam_size=int(self.config.get("ouvido.precisao", 1)), vad_filter=False,
+            condition_on_previous_text=False, without_timestamps=True,
             initial_prompt=f"{nome}, abre o Spotify. {nome}, pesquisa no Google.",
         )
         texto = " ".join(s.text.strip() for s in segmentos).strip()
+        self.log(f"[tempo] transcrição {len(amostras) / TAXA:.1f}s de áudio em {time.time() - inicio:.2f}s: {texto!r}")
         # Whisper às vezes "alucina" em silêncio
         if "amara org" in normalizar(texto) or "inscreva se no canal" in normalizar(texto):
             return ""

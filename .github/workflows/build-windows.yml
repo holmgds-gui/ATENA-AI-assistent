@@ -44,6 +44,9 @@ jobs:
           Expand-Archive vosk.zip -DestinationPath modelos
           Rename-Item modelos/vosk-model-small-pt-0.3 vosk-pt
 
+      - name: Embutir o reconhecimento de voz (Whisper base) — sem download na primeira vez
+        run: python -c "from huggingface_hub import snapshot_download; snapshot_download('Systran/faster-whisper-base', local_dir='modelos/whisper-base', allow_patterns=['*.bin','*.json','*.txt'])"
+
       - name: Gerar ATENA.exe (PyInstaller)
         run: pyinstaller atena.spec --noconfirm
 

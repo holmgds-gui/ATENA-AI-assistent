@@ -171,19 +171,29 @@ class Assistente:
 
     # ================================================================== ciclo principal
     def _preparar_e_rodar(self) -> None:
-        if self.usar_microfone:
-            try:
-                from .ouvido import Ouvido
-                self.ouvido = Ouvido(self.config, log=self._log)
-                self.ouvido.iniciar()
-            except Exception as e:
-                self.ouvido = None
-                self._log(f"[ouvido] microfone indisponível ({e}). Use o atalho ou escreva no painel.")
+        import time as _t
+        inicio = _t.time()
+        ouvido_pronto = threading.Event()
 
+        def preparar_ouvido():  # carrega microfone e detector enquanto ela já dá oi
+            if self.usar_microfone:
+                try:
+                    from .ouvido import Ouvido
+                    o = Ouvido(self.config, log=self._log)
+                    o.iniciar()
+                    self.ouvido = o
+                except Exception as e:
+                    self.ouvido = None
+                    self._log(f"[ouvido] microfone indisponível ({e}). Use o atalho ou escreva no painel.")
+            ouvido_pronto.set()
+
+        threading.Thread(target=preparar_ouvido, daemon=True).start()
         threading.Thread(target=self._carregar_extras, daemon=True).start()
         self.agenda.iniciar()
         self.conectar_telegram()
         self.falar(self._saudacao())
+        self._log(f"[tempo] saudação em {_t.time() - inicio:.1f}s depois de abrir")
+        ouvido_pronto.wait(timeout=60)
         if not self.cerebro.esta_online():
             self.falar("Aviso: não estou encontrando o Ollama. Os comandos rápidos funcionam, "
                        "mas pra conversar comigo abra o Ollama.")
@@ -242,6 +252,9 @@ class Assistente:
                 if not self.executar_rotina_palmas():
                     self._estado("dormindo")
                     return
+            else:
+                self._estado("ouvindo")
+                self.voz.bip()  # resposta na hora: você sabe que ela ouviu
             self._estado("ouvindo")
             comando = self._ouvir_comando(espera=7)
             if not comando:

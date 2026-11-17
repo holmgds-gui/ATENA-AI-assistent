@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import platform
+import time
 import re
 from typing import Callable
 
@@ -36,7 +37,7 @@ PERSONALIDADE:
 REGRAS:
 {p.get('regras_extras', '').strip()}
 - Chame o usuário de {usuario}.
-- Agora é {ferramentas.descrever_data_hora()}.
+- A data e a hora atuais vêm junto de cada pedido, entre colchetes.
 - Se precisar de informação atual (notícias, preços, clima, resultados), use pesquisar_web antes de responder.
 - Depois de usar uma ferramenta, confirme em poucas palavras o que fez. Não invente que fez algo que falhou.
 - Nunca diga o nome das ferramentas nem fale de JSON; fale como uma pessoa.
@@ -101,7 +102,7 @@ class CerebroOllama:
         """Carrega o modelo na memória da placa pra primeira resposta não demorar."""
         try:
             requests.post(self.url + "/api/generate",
-                          json={"model": self.modelo, "prompt": "", "keep_alive": "30m"}, timeout=120)
+                          json={"model": self.modelo, "prompt": "", "keep_alive": "60m"}, timeout=180)
         except requests.RequestException:
             pass
 
@@ -115,13 +116,16 @@ class CerebroOllama:
             "messages": mensagens,
             "tools": ferramentas.esquemas(self.config),
             "stream": False,
-            "keep_alive": "30m",
-            "options": {"temperature": float(self.config.get("cerebro.temperatura", 0.6))},
+            "keep_alive": "60m",
+            "options": {"temperature": float(self.config.get("cerebro.temperatura", 0.6)),
+                        "num_ctx": int(self.config.get("cerebro.contexto", 8192))},
         }
         if self._usa_think:
             corpo["think"] = False  # qwen3 e afins: desliga o "pensar alto" pra responder rápido
+        inicio = time.time()
         try:
             r = requests.post(self.url + "/api/chat", json=corpo, timeout=180)
+            print(f"[tempo] cérebro respondeu em {time.time() - inicio:.1f}s")
         except requests.ConnectionError:
             raise ErroCerebro("O Ollama não está rodando. Abra o app do Ollama e tente de novo.")
         except requests.Timeout:
@@ -143,7 +147,8 @@ class CerebroOllama:
         """Manda a fala do usuário, deixa a IA usar ferramentas, e devolve a resposta final em texto."""
         self.ultimas_execucoes = []
         self.historico.append({"role": "user", "content": texto_usuario})
-        mensagens = [{"role": "system", "content": montar_prompt_sistema(self.config)}] + self.historico
+        mensagens = [{"role": "system", "content": montar_prompt_sistema(self.config)}] + self.historico[:-1] + [
+            {"role": "user", "content": f"[{ferramentas.descrever_data_hora()}] {texto_usuario}"}]
         autonomia = self.config.get("seguranca.autonomia", "confirmar_arriscadas")
 
         cancelar = ctx.extras.get("cancelar")

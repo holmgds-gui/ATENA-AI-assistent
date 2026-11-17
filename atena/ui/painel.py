@@ -5,7 +5,7 @@ import threading
 import time
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout,
+from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDoubleSpinBox, QFormLayout, QFrame, QGridLayout,
                                QHBoxLayout, QLabel,
                                QLineEdit, QListWidget, QPlainTextEdit, QPushButton, QScrollArea, QSpinBox,
                                QStackedWidget, QTabWidget, QTextBrowser, QVBoxLayout, QWidget)
@@ -227,6 +227,9 @@ class Painel(FundoHud):
     chamar = Signal()
     _modelos_prontos = Signal(list)
     _status_cerebro = Signal(bool)
+    _atualizacao = Signal(object)
+    _progresso_att = Signal(str)
+    _sair_para_atualizar = Signal()
 
     def __init__(self, config, cerebro=None, assistente=None):
         super().__init__()
@@ -305,6 +308,19 @@ class Painel(FundoHud):
         lay = QVBoxLayout(w)
         lay.setContentsMargins(0, 18, 0, 22)
         lay.setSpacing(6)
+        # aviso de versão nova (fica escondido até existir uma)
+        self.b_atualizar = QPushButton("")
+        self.b_atualizar.setObjectName("primario")
+        self.b_atualizar.setCursor(Qt.PointingHandCursor)
+        self.b_atualizar.setMinimumHeight(40)
+        self.b_atualizar.hide()
+        self.b_atualizar.clicked.connect(self._atualizar_agora)
+        lay.addWidget(self.b_atualizar, 0, Qt.AlignHCenter)
+        self._info_att = None
+        self._atualizacao.connect(self._mostrar_atualizacao)
+        self._progresso_att.connect(self.b_atualizar.setText)
+        self._sair_para_atualizar.connect(lambda: QApplication.instance().quit())
+        threading.Thread(target=self._checar_atualizacao, daemon=True).start()
         lay.addStretch(1)
         self.orbe_inicio = criar_orbe(430, *tema.cores_da_config(self.config))
         lay.addWidget(self.orbe_inicio, 0, Qt.AlignHCenter)
@@ -344,6 +360,47 @@ class Painel(FundoHud):
         lay.addWidget(self.digitar_inicio, 0, Qt.AlignHCenter)
         self.paginas.addWidget(w)
         return w
+
+    # ---------------------------------------------------------------- atualização automática
+    def _checar_atualizacao(self):
+        time.sleep(4)
+        try:
+            from .. import atualizador
+            info = atualizador.verificar()
+        except Exception as e:
+            print(f"[atualizar] não deu pra checar: {e}")
+            return
+        if info:
+            self._atualizacao.emit(info)
+
+    def _mostrar_atualizacao(self, info):
+        self._info_att = info
+        self.b_atualizar.setText(f"  ▲  NOVA VERSÃO {info['versao']} — ATUALIZAR AGORA  ")
+        self.b_atualizar.setEnabled(True)
+        self.b_atualizar.show()
+
+    def _atualizar_agora(self):
+        info = self._info_att
+        if not info:
+            return
+        self.b_atualizar.setEnabled(False)
+        self.b_atualizar.setText("  BAIXANDO…  ")
+
+        def trabalho():
+            from .. import atualizador
+            try:
+                caminho = atualizador.baixar(
+                    info, lambda f: self._progresso_att.emit(f"  BAIXANDO… {int(f * 100)}%  "))
+                self._progresso_att.emit("  INSTALANDO — A ATENA VAI REABRIR SOZINHA  ")
+                atualizador.instalar(caminho)
+                time.sleep(1.5)
+                self._sair_para_atualizar.emit()
+            except Exception as e:
+                print(f"[atualizar] falhou: {e}")
+                self._atualizacao.emit(info)
+                self._progresso_att.emit("  FALHOU — TOQUE PARA TENTAR DE NOVO  ")
+
+        threading.Thread(target=trabalho, daemon=True).start()
 
     def _mostrar_digitar(self):
         self.digitar_inicio.setVisible(not self.digitar_inicio.isVisible())
@@ -916,10 +973,10 @@ class Painel(FundoHud):
         self.sens.setToolTip("Maior = precisa falar mais alto (bom em lugar barulhento)")
         form.addRow("Exigência de volume", self.sens)
         self.whisper = QComboBox()
-        for t, d in (("tiny", "tiny — muito rápido, erra mais"), ("base", "base — rápido"),
-                     ("small", "small — equilibrado (recomendado)"), ("medium", "medium — preciso, lento")):
+        for t, d in (("tiny", "tiny — instantâneo, erra mais"), ("base", "base — rápido (recomendado)"),
+                     ("small", "small — mais preciso, mais lento"), ("medium", "medium — preciso, bem lento")):
             self.whisper.addItem(d, t)
-        self.whisper.setCurrentIndex(max(0, self.whisper.findData(self.config.get("ouvido.modelo_whisper", "small"))))
+        self.whisper.setCurrentIndex(max(0, self.whisper.findData(self.config.get("ouvido.modelo_whisper", "base"))))
         form.addRow("Reconhecimento de fala", self.whisper)
         self.atalhos_rapidos = QCheckBox("Comandos rápidos sem IA (abrir apps, horas, volume)")
         self.atalhos_rapidos.setChecked(bool(self.config.get("atalhos_rapidos", True)))

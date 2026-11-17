@@ -121,6 +121,25 @@ class Voz:
         finally:
             self._analise = None
 
+    def bip(self) -> None:
+        """Som curto de 'estou ouvindo' (gerado na hora, sem arquivo e sem internet)."""
+        try:
+            import numpy as np
+            import pygame
+            self._iniciar_mixer()
+            if getattr(self, "_som_bip", None) is None:
+                taxa, canais = pygame.mixer.get_init()[0], pygame.mixer.get_init()[2]
+                t = np.arange(int(taxa * 0.16)) / taxa
+                freq = np.where(t < 0.07, 880.0, 1320.0)
+                onda = np.sin(2 * np.pi * freq * t) * np.minimum(1, t / 0.005) * np.exp(-t * 14) * 0.35
+                pcm = (onda * 32767).astype(np.int16)
+                if canais == 2:
+                    pcm = np.stack([pcm, pcm], 1)
+                self._som_bip = pygame.sndarray.make_sound(np.ascontiguousarray(pcm))
+            self._som_bip.play()
+        except Exception as e:
+            print(f"[voz] bip falhou: {e}")
+
     def analise_agora(self):
         """(volume 0..1, 48 bandas 0..1) do pedaço da fala que está tocando agora, ou (0, None)."""
         a = self._analise

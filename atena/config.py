@@ -39,7 +39,7 @@ PADRAO_CONFIG = {
                  "palmas": True, "num_palmas": 2, "exigencia_palmas": 1.0,
                  "modelo_vosk": "modelos/vosk-pt", "conversa_continua": True,
                  "segundos_conversa_continua": 6},
-    "ouvido": {"modelo_whisper": "small", "dispositivo": "cpu", "silencio_fim": 1.0,
+    "ouvido": {"modelo_whisper": "base", "precisao": 1, "dispositivo": "cpu", "silencio_fim": 1.0,
                "max_fala": 15, "sensibilidade": 2.5, "microfone": None},
     "voz": {"motor": "edge", "voz": "pt-BR-FranciscaNeural", "velocidade": "+8%", "tom": "+0Hz"},
     "seguranca": {"autonomia": "confirmar_arriscadas"},
@@ -138,6 +138,17 @@ class Config:
             self.apelidos_apps = {str(k).lower(): str(v) for k, v in (apps.get("apps") or {}).items()}
             self.apelidos_sites = {str(k).lower(): str(v) for k, v in (apps.get("sites") or {}).items()}
             self.memoria = self._ler_memoria()
+            self._migrar()
+
+    def _migrar(self) -> None:
+        """Ajusta configurações salvas por versões antigas."""
+        v = int(self.geral.get("versao_config", 1) or 1)
+        if v < 2:
+            if (self.geral.get("ouvido") or {}).get("modelo_whisper") == "small":
+                self.geral["ouvido"]["modelo_whisper"] = "base"   # 3x mais rápido, já vem no instalador
+            self.geral["versao_config"] = 2
+            if ARQ_CONFIG.exists():
+                _salvar_yaml(ARQ_CONFIG, self.geral)
 
     # ---------- atalhos de leitura ----------
     def get(self, caminho: str, padrao=None):

@@ -35,6 +35,10 @@ Name: "iniciar"; Description: "Abrir a ATENA junto com o Windows (pra palmas e "
 Name: "ollama"; Description: "Instalar o Ollama, o cérebro da ATENA (recomendado se ainda não tiver)"
 Name: "lhm"; Description: "Instalar o LibreHardwareMonitor (temperaturas e clocks no monitor do PC)"; Flags: unchecked
 
+[InstallDelete]
+; limpa bibliotecas da versão anterior antes de copiar a nova
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "..\dist\ATENA\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
@@ -45,6 +49,8 @@ Name: "{userdesktop}\ATENA"; Filename: "{app}\ATENA.exe"; Tasks: atalho
 Name: "{userstartup}\ATENA"; Filename: "{app}\ATENA.exe"; Tasks: iniciar
 
 [Run]
-Filename: "{cmd}"; Parameters: "/c winget install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements"; StatusMsg: "Instalando o Ollama (pode demorar alguns minutos)..."; Tasks: ollama; Flags: runhidden waituntilterminated
-Filename: "{cmd}"; Parameters: "/c winget install -e --id LibreHardwareMonitor.LibreHardwareMonitor --accept-package-agreements --accept-source-agreements"; StatusMsg: "Instalando o LibreHardwareMonitor..."; Tasks: lhm; Flags: runhidden waituntilterminated
+Filename: "{cmd}"; Parameters: "/c winget install -e --id Ollama.Ollama --accept-package-agreements --accept-source-agreements"; StatusMsg: "Instalando o Ollama (pode demorar alguns minutos)..."; Tasks: ollama; Flags: runhidden waituntilterminated; Check: not WizardSilent
+Filename: "{cmd}"; Parameters: "/c winget install -e --id LibreHardwareMonitor.LibreHardwareMonitor --accept-package-agreements --accept-source-agreements"; StatusMsg: "Instalando o LibreHardwareMonitor..."; Tasks: lhm; Flags: runhidden waituntilterminated; Check: not WizardSilent
 Filename: "{app}\ATENA.exe"; Description: "Abrir a ATENA agora"; Flags: nowait postinstall skipifsilent
+; atualização automática (modo silencioso): reabre a ATENA sozinha
+Filename: "{app}\ATENA.exe"; Flags: nowait; Check: WizardSilent
