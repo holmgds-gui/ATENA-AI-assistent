@@ -2,7 +2,8 @@ name: Gerar ATENA-Setup.exe
 
 on:
   push:
-    tags: ["v*"]
+    branches: [main]
+    paths-ignore: ["**.md"]
   workflow_dispatch:
 
 permissions:
@@ -14,6 +15,14 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+
+      - name: Ler versão do código
+        id: versao
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path atena\__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          "v=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Versão: $v"
 
       - uses: actions/setup-python@v5
         with:
@@ -50,8 +59,7 @@ jobs:
         shell: pwsh
         run: |
           if (-not (Test-Path "C:\Program Files (x86)\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
-          $env:ATENA_VERSAO = "${{ github.ref_name }}".TrimStart("v")
-          if ($env:ATENA_VERSAO -notmatch '^\d') { $env:ATENA_VERSAO = "0.0.0-teste" }
+          $env:ATENA_VERSAO = "${{ steps.versao.outputs.v }}"
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" instalador\atena.iss
           Get-Item dist\ATENA-Setup.exe | Select-Object Name, Length
 
@@ -61,11 +69,13 @@ jobs:
           path: dist/ATENA-Setup.exe
 
       - name: Publicar na página de Releases
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: v${{ steps.versao.outputs.v }}
+          target_commitish: ${{ github.sha }}
+          make_latest: "true"
           files: dist/ATENA-Setup.exe
-          name: ATENA ${{ github.ref_name }}
+          name: ATENA v${{ steps.versao.outputs.v }}
           body: |
             **Baixe o `ATENA-Setup.exe` aqui embaixo, em Assets.**
 
