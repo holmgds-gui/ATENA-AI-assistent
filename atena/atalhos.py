@@ -34,6 +34,11 @@ def _ok(usuario: str) -> str:
 def tentar(frase: str, config) -> ResultadoAtalho | None:
     usuario = config.nome_usuario
     t = normalizar(frase)
+    # tira "atena," do começo e educação do fim ("abre o spotify por favor")
+    nome = normalizar(config.nome_ia)
+    t = re.sub(rf"^(ei |oi |ok |e ai )?{re.escape(nome)}\b[ ,]*", "", t).strip() if nome else t
+    t = re.sub(r"^(por favor|pfv|me|pode|consegue|quero|queria|voce pode|tem como) ", "", t).strip()
+    t = re.sub(r"^(me |pra mim )", "", t).strip()
     if not t:
         return None
     # pedidos compostos ("abre o chrome e pesquisa X") ficam pra IA
@@ -115,7 +120,8 @@ def tentar(frase: str, config) -> ResultadoAtalho | None:
         return ResultadoAtalho(f"Pesquisando no {m.group(3)}.", "pesquisa")
 
     # ---- abrir app ou site
-    m = re.match(r"^(abre|abra|abrir|abri|inicia|iniciar|executa|executar|liga|entra no|entra na|vai no|vai na) (.+)$", t)
+    m = re.match(r"^(abre|abra|abrir|abri|abriu|abre ai|abrir o|inicia|iniciar|executa|executar|roda|rodar|liga|"
+                 r"entra no|entra na|vai no|vai na|bota|coloca) (.+)$", t)
     if m:
         alvo = _limpa(m.group(2))
         if not alvo:
@@ -135,5 +141,15 @@ def tentar(frase: str, config) -> ResultadoAtalho | None:
         if ok:
             return ResultadoAtalho(f"Abrindo {info}.", "app")
         return None  # deixa a IA tentar entender
+
+    # ---- só o nome do app ("Spotify.") → abre na hora
+    if pode("apps") and 0 < len(t.split()) <= 3:
+        alvo = _limpa(t)
+        apelidos = {normalizar(k): v for k, v in (config.apelidos_apps or {}).items()}
+        app = sistema.INDICE.procurar(apelidos.get(alvo, alvo)) if sistema.INDICE.carregado else None
+        if app is not None and (app.chave == normalizar(apelidos.get(alvo, alvo)) or alvo in apelidos):
+            ok, info = sistema.abrir_app(alvo, config.apelidos_apps)
+            if ok:
+                return ResultadoAtalho(f"Abrindo {info}.", "app")
 
     return None

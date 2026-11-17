@@ -5,6 +5,7 @@ import json
 import platform
 import time
 import re
+import threading
 from typing import Callable
 
 import requests
@@ -54,6 +55,17 @@ O QUE VOCÊ SABE SOBRE O {usuario.upper()}:
 """
 
 
+_FIM_FRASE = re.compile(r"(?<=[.!?…:;])\s+(?=\S)")
+
+
+def _separar_frases_prontas(buffer: str) -> tuple[list[str], str]:
+    """Separa as frases já completas do texto que ainda está chegando."""
+    partes = _FIM_FRASE.split(buffer)
+    if len(partes) <= 1:
+        return [], buffer
+    return partes[:-1], partes[-1]
+
+
 def limpar_para_fala(texto: str) -> str:
     """Tira markdown, pensamento e símbolos que soam estranhos falados."""
     texto = re.sub(r"<think>.*?</think>", "", texto or "", flags=re.S)
@@ -75,6 +87,9 @@ class CerebroOllama:
         self.historico: list[dict] = []
         self.ultimas_execucoes: list[tuple[str, dict, str]] = []  # (ferramenta, args, resultado) do último pedido
         self._usa_think = True
+        self._ultimo_uso = 0.0
+        self.estado_gpu = {"na_gpu": None, "porcentagem_gpu": None}
+        self.ultima_velocidade = 0.0
 
     # ---------------- utilidades ----------------
     @property
@@ -99,53 +114,149 @@ class CerebroOllama:
             return []
 
     def aquecer(self) -> None:
-        """Carrega o modelo na memória da placa pra primeira resposta não demorar."""
+        """Carrega o modelo na placa E já processa o prompt fixo (personalidade + ferramentas).
+        Assim o primeiro pedido de verdade só precisa ler a sua frase."""
+        inicio = time.time()
         try:
-            requests.post(self.url + "/api/generate",
-                          json={"model": self.modelo, "prompt": "", "keep_alive": "60m"}, timeout=180)
+            corpo = self._corpo([{"role": "system", "content": montar_prompt_sistema(self.config)},
+                                 {"role": "user", "content": "oi"}], stream=False)
+            corpo["options"]["num_predict"] = 1
+            requests.post(self.url + "/api/chat", json=corpo, timeout=300)
+            self._ultimo_uso = time.time()
+            print(f"[tempo] cérebro aquecido em {time.time() - inicio:.1f}s")
+            self.diagnosticar()
         except requests.RequestException:
             pass
+
+    def aquecer_se_frio(self) -> None:
+        """Chamado quando você diz 'Atena': se o modelo pode ter saído da memória, recarrega em paralelo."""
+        if time.time() - getattr(self, "_ultimo_uso", 0) > 50 * 60:
+            self._ultimo_uso = time.time()
+            threading.Thread(target=self.aquecer, daemon=True).start()
+
+    def diagnosticar(self) -> dict:
+        """Vê se o modelo está na placa de vídeo ou no processador (o que deixa tudo lento)."""
+        info = {"na_gpu": None, "porcentagem_gpu": None}
+        try:
+            r = requests.get(self.url + "/api/ps", timeout=3).json()
+            for m in r.get("models", []):
+                if m.get("name", "").split(":")[0] == self.modelo.split(":")[0]:
+                    total, vram = int(m.get("size") or 0), int(m.get("size_vram") or 0)
+                    if total:
+                        pct = round(100 * vram / total)
+                        info = {"na_gpu": pct >= 90, "porcentagem_gpu": pct}
+                    break
+        except Exception:
+            pass
+        self.estado_gpu = info
+        if info["porcentagem_gpu"] is not None:
+            print(f"[cérebro] modelo {self.modelo}: {info['porcentagem_gpu']}% na placa de vídeo"
+                  + ("" if info["na_gpu"] else "  <-- LENTO: rodando no processador"))
+        return info
 
     def esquecer_conversa(self) -> None:
         self.historico.clear()
 
     # ---------------- conversa ----------------
-    def _chamar(self, mensagens: list[dict]) -> dict:
+    def _corpo(self, mensagens: list[dict], stream: bool = True) -> dict:
         corpo = {
             "model": self.modelo,
             "messages": mensagens,
             "tools": ferramentas.esquemas(self.config),
-            "stream": False,
+            "stream": stream,
             "keep_alive": "60m",
             "options": {"temperature": float(self.config.get("cerebro.temperatura", 0.6)),
-                        "num_ctx": int(self.config.get("cerebro.contexto", 8192))},
+                        "num_ctx": int(self.config.get("cerebro.contexto", 8192)),
+                        "num_predict": int(self.config.get("cerebro.max_tokens", 400))},
         }
         if self._usa_think:
             corpo["think"] = False  # qwen3 e afins: desliga o "pensar alto" pra responder rápido
+        return corpo
+
+    def _chamar(self, mensagens: list[dict], ao_frase: Callable[[str], None] | None = None) -> dict:
+        """Chama o Ollama em modo streaming. Cada frase completa vai pra `ao_frase` assim que fica pronta,
+        então ela começa a falar antes de terminar de pensar a resposta inteira."""
+        corpo = self._corpo(mensagens, stream=True)
         inicio = time.time()
+        self._ultimo_uso = inicio
         try:
-            r = requests.post(self.url + "/api/chat", json=corpo, timeout=180)
-            print(f"[tempo] cérebro respondeu em {time.time() - inicio:.1f}s")
+            r = requests.post(self.url + "/api/chat", json=corpo, timeout=(5, 300), stream=True)
         except requests.ConnectionError:
             raise ErroCerebro("O Ollama não está rodando. Abra o app do Ollama e tente de novo.")
         except requests.Timeout:
             raise ErroCerebro("O modelo demorou demais pra responder.")
-        if r.status_code == 400 and "think" in r.text.lower() and self._usa_think:
-            self._usa_think = False
-            return self._chamar(mensagens)
+        if r.status_code == 400:
+            txt = r.text
+            if "think" in txt.lower() and self._usa_think:
+                self._usa_think = False
+                return self._chamar(mensagens, ao_frase)
+            if "does not support tools" in txt:
+                raise ErroCerebro(f"O modelo {self.modelo} não sabe usar ferramentas. Use um como qwen3-vl.")
+            raise ErroCerebro(f"Erro do Ollama: {txt[:200]}")
         if r.status_code == 404:
             raise ErroCerebro(f"O modelo {self.modelo} não está instalado. Rode: ollama pull {self.modelo}")
-        if r.status_code == 400 and "does not support tools" in r.text:
-            raise ErroCerebro(f"O modelo {self.modelo} não sabe usar ferramentas. Use um como qwen3.")
         if not r.ok:
             raise ErroCerebro(f"Erro do Ollama: {r.text[:200]}")
-        return r.json().get("message", {})
+
+        conteudo, chamadas, buffer, final = [], [], "", {}
+        primeira = None
+        try:
+            for linha in r.iter_lines():
+                if not linha:
+                    continue
+                parte = json.loads(linha)
+                if parte.get("error"):
+                    raise ErroCerebro(f"Erro do Ollama: {str(parte['error'])[:200]}")
+                msg = parte.get("message") or {}
+                if msg.get("tool_calls"):
+                    chamadas.extend(msg["tool_calls"])
+                pedaco = msg.get("content") or ""
+                if pedaco:
+                    if primeira is None:
+                        primeira = time.time() - inicio
+                    conteudo.append(pedaco)
+                    if ao_frase and not chamadas:
+                        buffer += pedaco
+                        frases, buffer = _separar_frases_prontas(buffer)
+                        for f in frases:
+                            f = limpar_para_fala(f)
+                            if f:
+                                ao_frase(f)
+                if parte.get("done"):
+                    final = parte
+                    break
+        except requests.RequestException:
+            raise ErroCerebro("A conexão com o Ollama caiu no meio da resposta.")
+        if ao_frase and not chamadas and buffer.strip():
+            f = limpar_para_fala(buffer)
+            if f:
+                ao_frase(f)
+        self._registrar_tempo(inicio, primeira, final)
+        return {"role": "assistant", "content": "".join(conteudo), "tool_calls": chamadas}
+
+    def _registrar_tempo(self, inicio, primeira, final: dict) -> None:
+        total = time.time() - inicio
+        try:
+            pe, pd = int(final.get("prompt_eval_count") or 0), int(final.get("prompt_eval_duration") or 0) / 1e9
+            ec, ed = int(final.get("eval_count") or 0), int(final.get("eval_duration") or 0) / 1e9
+            ld = int(final.get("load_duration") or 0) / 1e9
+            vel = ec / ed if ed else 0
+            self.ultima_velocidade = vel
+            print(f"[tempo] cérebro: {total:.1f}s (1ª palavra {primeira or 0:.1f}s, carregar {ld:.1f}s, "
+                  f"leu {pe} tokens em {pd:.1f}s, escreveu {ec} a {vel:.0f} tokens/s)")
+            if vel and vel < 12 and not getattr(self, "_avisou_lento", False):
+                self._avisou_lento = True
+                self.diagnosticar()
+        except Exception:
+            print(f"[tempo] cérebro respondeu em {total:.1f}s")
 
     def responder(self, texto_usuario: str, ctx: Contexto,
                   confirmar: Callable[[str], bool] | None = None,
-                  ao_usar_ferramenta: Callable[[str, dict], None] | None = None) -> str:
+                  ao_usar_ferramenta: Callable[[str, dict], None] | None = None,
+                  ao_frase: Callable[[str], None] | None = None) -> str:
         """Manda a fala do usuário, deixa a IA usar ferramentas, e devolve a resposta final em texto."""
         self.ultimas_execucoes = []
+        self.final_transmitido = False
         self.historico.append({"role": "user", "content": texto_usuario})
         mensagens = [{"role": "system", "content": montar_prompt_sistema(self.config)}] + self.historico[:-1] + [
             {"role": "user", "content": f"[{ferramentas.descrever_data_hora()}] {texto_usuario}"}]
@@ -156,16 +267,17 @@ class CerebroOllama:
             if cancelar is not None and cancelar.is_set():
                 self.historico.append({"role": "assistant", "content": "Parei, como você pediu."})
                 return "Parei, como você pediu."
-            msg = self._chamar(mensagens)
+            msg = self._chamar(mensagens, ao_frase)
             chamadas = msg.get("tool_calls") or []
             if not chamadas:
+                self.final_transmitido = bool(ao_frase and limpar_para_fala(msg.get("content", "")))
                 resposta = limpar_para_fala(msg.get("content", "")) or "Feito."
                 self.historico.append({"role": "assistant", "content": resposta})
                 self._podar()
                 return resposta
 
             mensagens.append({"role": "assistant", "content": msg.get("content", ""), "tool_calls": chamadas})
-            if msg.get("content") and ao_usar_ferramenta:
+            if msg.get("content") and ao_usar_ferramenta and ao_frase is None:
                 ao_usar_ferramenta("_fala", {"texto": limpar_para_fala(msg["content"])})
             for ch in chamadas:
                 fn = ch.get("function", {})

@@ -18,3 +18,27 @@ def test_migracao_whisper(tmp_path, monkeypatch):
     cfg = c.Config()
     assert cfg.get("ouvido.modelo_whisper") == "base"
     assert cfg.geral.get("versao_config") == 2
+
+
+def test_separa_frases_prontas():
+    from atena.cerebro import _separar_frases_prontas
+    assert _separar_frases_prontas("Abrindo o Spotify. Já vai toc") == (["Abrindo o Spotify."], "Já vai toc")
+    assert _separar_frases_prontas("Oi") == ([], "Oi")
+
+
+def test_atalho_so_nome_do_app_e_abriu(monkeypatch, tmp_path):
+    from atena import atalhos, sistema
+    from atena.sistema import App
+    monkeypatch.setattr(sistema.INDICE, "apps", [App("Spotify", "x"), App("WhatsApp", "y")])
+    monkeypatch.setattr(sistema.INDICE, "carregado", True)
+    abertos = []
+    monkeypatch.setattr(sistema, "abrir_app", lambda n, ap=None: abertos.append(n) or (True, n.title()))
+
+    class Cfg:
+        nome_usuario, nome_ia, apelidos_apps, apelidos_sites = "Gui", "atena", {}, {}
+        permitido = staticmethod(lambda p: True)
+    assert atalhos.tentar("Spotify.", Cfg)
+    assert atalhos.tentar("Abriu o WhatsApp.", Cfg)
+    assert atalhos.tentar("Atena, abre o spotify por favor", Cfg)
+    assert atalhos.tentar("qual a capital da frança", Cfg) is None
+    assert abertos == ["spotify", "whatsapp", "spotify"]

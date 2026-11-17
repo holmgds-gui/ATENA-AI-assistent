@@ -99,6 +99,10 @@ class Resp:
     def json(self):
         return self._d
 
+    def iter_lines(self):
+        import json as _j
+        yield _j.dumps({**self._d, "done": True}).encode()
+
 
 @pytest.fixture
 def cfg(tmp_path, monkeypatch):

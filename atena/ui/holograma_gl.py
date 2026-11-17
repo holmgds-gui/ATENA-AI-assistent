@@ -365,9 +365,14 @@ class OrbeGL(QOpenGLWidget):
         self._sec = QColor(secundaria)
         self._cor = QColor(primaria)
         self._pronto = False
+        # qualidade adaptativa: 2 = completa, 1 = sem MSAA e bloom leve, 0 = econômica
+        self.qualidade = 2
+        self._tempos: list[float] = []
+        self._ultimo_quadro = 0.0
         self._timer = QTimer(self)
+        self._timer.setTimerType(Qt.PreciseTimer)   # timer "grosso" do Windows causa engasgos
         self._timer.timeout.connect(self.update)
-        self._timer.start(33)
+        self._timer.start(16)
 
     # ---------------------------------------------------------------- API
     def set_cores(self, primaria: str, secundaria: str) -> None:
@@ -377,7 +382,7 @@ class OrbeGL(QOpenGLWidget):
         if estado != self.estado and estado == "falando":
             self._ondas.append(0.0)
         self.estado = estado
-        self._timer.setInterval(33 if estado in ("dormindo", "mudo") else 16)
+        self._timer.setInterval(16)
 
     def materializar(self) -> None:
         self._mat_t0 = time.time()
@@ -454,7 +459,7 @@ class OrbeGL(QOpenGLWidget):
     def _criar_fbos(self, w: int, h: int):
         fmt = QOpenGLFramebufferObjectFormat()
         fmt.setInternalTextureFormat(GL_RGBA16F)
-        fmt.setSamples(4)
+        fmt.setSamples(4 if self.qualidade >= 2 else 0)
         cena_ms = QOpenGLFramebufferObject(w, h, fmt)
         fmt1 = QOpenGLFramebufferObjectFormat()
         fmt1.setInternalTextureFormat(GL_RGBA16F)
@@ -527,6 +532,26 @@ class OrbeGL(QOpenGLWidget):
                 self._mat_t0 = None
         return t, mat
 
+    def _medir_quadro(self):
+        """Se os quadros estão demorando (PC ocupado), baixa a qualidade sozinha pra ficar fluido."""
+        agora = time.perf_counter()
+        if time.time() - self._t0 < 8:   # começo da ATENA carregando tudo: não conta
+            self._ultimo_quadro = agora
+            return
+        if self._ultimo_quadro:
+            dt = agora - self._ultimo_quadro
+            if dt < 0.5:   # ignora pausas (janela escondida etc.)
+                self._tempos.append(dt)
+        self._ultimo_quadro = agora
+        if len(self._tempos) >= 90:
+            self._tempos.sort()
+            mediana = self._tempos[len(self._tempos) // 2]
+            self._tempos.clear()
+            if mediana > 0.026 and self.qualidade > 0:
+                self.qualidade -= 1
+                self._fbos = None
+                print(f"[holograma] quadros lentos ({mediana * 1000:.0f} ms): qualidade {self.qualidade}")
+
     # ---------------------------------------------------------------- desenho
     def paintGL(self):
         f = self.context().functions()
@@ -535,6 +560,7 @@ class OrbeGL(QOpenGLWidget):
             f.glClear(GL_COLOR_BUFFER_BIT)
             return
         t, mat = self._passo()
+        self._medir_quadro()
         dpr = self.devicePixelRatioF()
         W, H = int(self.width() * dpr), int(self.height() * dpr)
         if self._fbos is None or self._fbos[0] != W or self._fbos[1] != H:
@@ -565,7 +591,8 @@ class OrbeGL(QOpenGLWidget):
         f.glEnable(GL_BLEND)
         f.glBlendFunc(GL_ONE, GL_ONE)
         f.glEnable(GL_PROGRAM_POINT_SIZE)
-        f.glEnable(GL_MULTISAMPLE)
+        if self.qualidade >= 2:
+            f.glEnable(GL_MULTISAMPLE)
 
         def comuns(p, modelo_=modelo):
             p.bind()
@@ -576,11 +603,13 @@ class OrbeGL(QOpenGLWidget):
             p.setUniformValue1f("u_audio", self._audio if est in ("falando", "ouvindo") else 0.0)
             p.setUniformValue1f("u_alfa", alfa)
 
-        def desenhar(g, modo):
+        def desenhar(g, modo, fracao=1.0):
             vao, _, n = g
             vao.bind()
-            f.glDrawArrays(modo, 0, n)
+            f.glDrawArrays(modo, 0, max(1, int(n * fracao)))
             vao.release()
+
+        menos = 1.0 if self.qualidade >= 1 else 0.5
 
         # 1) globo geodésico + globo interno
         comuns(self.p_malha)
@@ -636,13 +665,13 @@ class OrbeGL(QOpenGLWidget):
         self.p_part.setUniformValue1f("u_expandir", 0.35 * self._audio if est == "falando" else 0.08 * e)
         self.p_part.setUniformValue1f("u_redemoinho", 0.0)
         self.p_part.setUniformValue1f("u_alfa", alfa * (0.22 + 0.35 * e))
-        desenhar(self.g_part, GL_POINTS)
+        desenhar(self.g_part, GL_POINTS, menos)
         self.p_part.setUniformValue("u_cor", cor2)
         self.p_part.setUniformValue1f("u_vel", 3.0 if est == "pensando" else 1.6)
         self.p_part.setUniformValue1f("u_redemoinho", 0.08)
         self.p_part.setUniformValue1f("u_expandir", 0.6 * self._audio)
         self.p_part.setUniformValue1f("u_alfa", alfa * (0.16 + 0.3 * e))
-        desenhar(self.g_nucleo, GL_POINTS)
+        desenhar(self.g_nucleo, GL_POINTS, menos)
 
         # 6) HUD em tela: núcleo, equalizador, ondas, régua
         self.p_hud.bind()
@@ -681,7 +710,7 @@ class OrbeGL(QOpenGLWidget):
             destino.release()
 
         passe(fa, self.p_copia, cena.texture())
-        for _ in range(2):
+        for _ in range(2 if self.qualidade >= 2 else 1):
             passe(fb, self.p_blur, fa.texture(), u_dir=(1.6 / hw, 0.0))
             passe(fa, self.p_blur, fb.texture(), u_dir=(0.0, 1.6 / hh))
 

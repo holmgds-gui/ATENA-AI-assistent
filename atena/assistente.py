@@ -47,6 +47,47 @@ class CanalAgenda:
         return ""
 
 
+class _FalaAoVivo:
+    """Recebe as frases da IA conforme ela escreve e já vai falando (sem esperar a resposta inteira)."""
+
+    def __init__(self, a):
+        import queue as _q
+        self.a = a
+        self.fila = _q.Queue()
+        self.thread = None
+        self.textos: list[str] = []
+
+    def frase(self, texto: str) -> None:
+        self.textos.append(texto)
+        self.a.evento("atena", " ".join(self.textos))
+        self.fila.put(texto)
+        if self.thread is None:
+            self.thread = threading.Thread(target=self._rodar, daemon=True)
+            self.thread.start()
+
+    def _rodar(self) -> None:
+        a = self.a
+        if a.ouvido:
+            a.ouvido.surdo(True)
+        try:
+            a.voz.falar_fila(self.fila, ao_comecar=lambda: a._estado("falando"))
+        except Exception as e:
+            a._log(f"[voz] erro: {e}")
+        finally:
+            if a.ouvido and not a.mudo:
+                a.ouvido.surdo(False)
+
+    def terminar(self) -> None:
+        """Fecha o que está sendo falado agora (dá pra continuar depois com novas frases)."""
+        if self.thread is not None:
+            import queue as _q
+            self.fila.put(None)
+            if self.thread is not threading.current_thread():
+                self.thread.join(timeout=120)
+            self.thread = None
+            self.fila = _q.Queue()
+
+
 class Assistente:
     def __init__(self, config, evento=None, usar_microfone: bool = True):
         self.config = config
@@ -149,6 +190,9 @@ class Assistente:
     def _falar_pc(self, texto: str) -> None:
         if not texto:
             return
+        fluxo = getattr(self, "_fluxo", None)
+        if fluxo is not None:      # termina a fala ao vivo antes (ex.: pergunta de confirmação)
+            fluxo.terminar()
         self.evento("atena", texto)
         if self.ouvido:
             self.ouvido.surdo(True)
@@ -255,6 +299,7 @@ class Assistente:
             else:
                 self._estado("ouvindo")
                 self.voz.bip()  # resposta na hora: você sabe que ela ouviu
+            self.cerebro.aquecer_se_frio()  # se o modelo saiu da memória, já recarrega enquanto você fala
             self._estado("ouvindo")
             comando = self._ouvir_comando(espera=7)
             if not comando:
@@ -349,19 +394,28 @@ class Assistente:
         self._estado("pensando")
         self._cancelar.clear()
         self.executando = True
+        fluxo = _FalaAoVivo(self) if self.canal is None else None
+        self._fluxo = fluxo
         try:
             resposta = self.cerebro.responder(texto, self.ctx, confirmar=self._confirmar,
-                                              ao_usar_ferramenta=self._ao_usar_ferramenta)
+                                              ao_usar_ferramenta=self._ao_usar_ferramenta,
+                                              ao_frase=fluxo.frase if fluxo else None)
         except ErroCerebro as e:
             self._estado("erro")
             resposta = str(e)
+            self.cerebro.final_transmitido = False
         finally:
             self.executando = False
+            if fluxo:
+                fluxo.terminar()   # espera ela acabar de falar o que já veio
+            self._fluxo = None
         if self._cancelar.is_set():
             self._cancelar.clear()
             resposta = "Parei, como você pediu."
             self.falar(resposta)
             return
+        if getattr(self.cerebro, "final_transmitido", False):
+            resposta = ""          # já foi falada ao vivo, frase por frase
         passos = hab_mod.converter_passos(self.cerebro.ultimas_execucoes)
         sugerir = (self.config.get("habilidades.sugerir", True) and self.config.permitido("memoria")
                    and len(passos) >= int(self.config.get("habilidades.minimo_passos", 3))
@@ -370,7 +424,7 @@ class Assistente:
         if not sugerir:
             self.falar(resposta)
             return
-        self.falar(resposta + " Quer que eu salve isso como uma habilidade?")
+        self.falar((resposta + " " if resposta else "") + "Quer que eu salve isso como uma habilidade?")
         self._oferecer_habilidade(passos)
 
     # ================================================================== habilidades

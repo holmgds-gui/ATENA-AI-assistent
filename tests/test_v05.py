@@ -158,12 +158,24 @@ class Resp:
     def json(self):
         return self._d
 
+    def iter_lines(self):
+        import json as _j
+        yield _j.dumps({**self._d, "done": True}).encode()
+
 
 def _assistente(cfg):
     from atena.assistente import Assistente
     a = Assistente(cfg, usar_microfone=False)
     falas = []
     a.voz.falar = lambda t, ao_comecar=None: falas.append(t)
+
+    def falar_fila(fila, ao_comecar=None):  # fala ao vivo (streaming) vira uma fala só no teste
+        partes = []
+        while (x := fila.get()) is not None:
+            partes.append(x)
+        if partes:
+            falas.append(" ".join(partes))
+    a.voz.falar_fila = falar_fila
     a._origem_texto = True
     return a, falas
 
@@ -186,7 +198,8 @@ def test_sugere_e_salva_habilidade(cfg, pc, monkeypatch):
     monkeypatch.setattr(cerebro.requests, "post", lambda *x, **k: Resp({"message": fila.pop(0)}))
     a._textos.put(("sim, salva como modo foco", None))      # a resposta da pessoa
     a.processar("prepara tudo pra eu estudar")
-    assert "Quer que eu salve isso como uma habilidade?" in falas[0]
+    assert falas[0] == "Tudo pronto pra estudar."  # falado ao vivo
+    assert falas[1] == "Quer que eu salve isso como uma habilidade?"
     assert a.habilidades.procurar("modo foco") is not None
     assert falas[-1].startswith("Salvei como modo foco")
     assert [p["ferramenta"] for p in a.habilidades.lista[0]["passos"]] == ["abrir_app", "tocar_youtube", "volume"]

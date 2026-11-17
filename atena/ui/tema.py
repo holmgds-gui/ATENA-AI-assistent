@@ -91,6 +91,8 @@ QPushButton:disabled {{ color: {APAGADO}; border-color: {LINHA}; background: tra
 QPushButton#primario {{ background: {rgba(D, 0.16)}; color: {_mix(D, '#FFFFFF', 0.35)}; border: 1px solid {D}; }}
 QPushButton#primario:hover {{ background: {rgba(D, 0.3)}; color: #FFFFFF; }}
 QPushButton#primario:disabled {{ background: transparent; color: {APAGADO}; border-color: {LINHA}; }}
+QPushButton#perigo {{ background: {rgba(ALERTA, 0.12)}; color: {_mix(ALERTA, '#FFFFFF', 0.4)}; border: 1px solid {ALERTA}; }}
+QPushButton#perigo:hover {{ background: {rgba(ALERTA, 0.25)}; color: #FFFFFF; }}
 QPushButton#link {{ background: transparent; border: none; color: {APAGADO}; padding: 6px 8px; letter-spacing: 2px; }}
 QPushButton#link:hover {{ color: {D}; }}
 

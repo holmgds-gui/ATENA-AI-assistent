@@ -116,6 +116,10 @@ class RespostaFalsa:
     def json(self):
         return self._d
 
+    def iter_lines(self):  # Ollama em streaming: manda tudo num pedaço só, já com done=true
+        import json as _j
+        yield _j.dumps({**self._d, "done": True}).encode()
+
 
 def test_cerebro_usa_ferramenta_e_responde(cfg, chamadas, monkeypatch):
     respostas = [
@@ -125,7 +129,7 @@ def test_cerebro_usa_ferramenta_e_responde(cfg, chamadas, monkeypatch):
     ]
     enviados = []
 
-    def post(url, json=None, timeout=None):
+    def post(url, json=None, timeout=None, **_):
         enviados.append(json)
         return RespostaFalsa(respostas.pop(0))
 

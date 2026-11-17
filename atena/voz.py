@@ -8,6 +8,7 @@ from __future__ import annotations
 import asyncio
 import math
 import os
+import queue
 import re
 import tempfile
 import threading
@@ -184,49 +185,89 @@ class Voz:
                 self.falando = False
 
     def _falar_edge(self, texto: str, ao_comecar) -> None:
-        # Gera frase por frase: a primeira começa a tocar enquanto as outras são geradas.
-        frases = dividir_frases(texto) or [texto]
+        fila: "queue.Queue[str | None]" = queue.Queue()
+        for frase in (dividir_frases(texto) or [texto]):
+            fila.put(frase)
+        fila.put(None)
+        self._falar_edge_fila(fila, ao_comecar)
+
+    def _falar_edge_fila(self, fila, ao_comecar) -> None:
+        """Gera e toca frase por frase, na ordem em que chegam na fila (None = acabou).
+        A frase seguinte é gerada enquanto a anterior toca."""
         pasta = tempfile.mkdtemp(prefix="atena_")
-        arquivos: list[str | None] = [None] * len(frases)
-        erros: list[Exception] = []
-        prontos = [threading.Event() for _ in frases]
+        prontos: "queue.Queue[tuple[str | None, Exception | None]]" = queue.Queue()
+        self._consumidas = []
 
         def gerar_todas():
-            for i, frase in enumerate(frases):
-                if self._parar.is_set():
-                    break
+            i = 0
+            while True:
+                frase = fila.get()
+                if frase is None or self._parar.is_set():
+                    prontos.put((None, None))
+                    return
+                frase = frase.strip()
+                if not frase:
+                    continue
+                self._consumidas.append(frase)
                 caminho = os.path.join(pasta, f"{i}.mp3")
+                i += 1
                 try:
                     self._gerar_edge(frase, caminho)
-                    arquivos[i] = caminho
+                    prontos.put((caminho, None))
                 except Exception as e:
-                    erros.append(e)
-                prontos[i].set()
-                if erros:
-                    for ev in prontos:
-                        ev.set()
-                    break
+                    prontos.put((None, e))
+                    return
 
         threading.Thread(target=gerar_todas, daemon=True).start()
         comecou = False
-        for i in range(len(frases)):
-            prontos[i].wait(timeout=20)
-            if self._parar.is_set():
+        tocados = []
+        while True:
+            try:
+                arq, erro = prontos.get(timeout=60)
+            except queue.Empty:
                 break
-            if arquivos[i] is None:
-                if erros and not comecou:
-                    raise erros[0]
+            if erro is not None:
+                if not comecou:
+                    raise erro
+                break
+            if arq is None or self._parar.is_set():
                 break
             if not comecou and ao_comecar:
                 ao_comecar()
             comecou = True
-            self._tocar_arquivo(arquivos[i])
-        for arq in arquivos:
-            if arq:
-                try:
-                    os.remove(arq)
-                except OSError:
-                    pass
+            self._tocar_arquivo(arq)
+            tocados.append(arq)
+        for arq in tocados:
+            try:
+                os.remove(arq)
+            except OSError:
+                pass
+
+    def falar_fila(self, fila, ao_comecar=None) -> None:
+        """Fala frases que vão chegando (resposta da IA em tempo real). Bloqueia até a fila acabar."""
+        with self._trava:
+            self._parar.clear()
+            self.falando = True
+            try:
+                if self.config.get("voz.motor", "edge") == "edge":
+                    try:
+                        self._falar_edge_fila(fila, ao_comecar)
+                        return
+                    except Exception as e:
+                        print(f"[voz] edge-tts falhou ({e}); usando voz offline")
+                # offline: junta o resto e fala de uma vez
+                partes = list(getattr(self, "_consumidas", []))
+                while True:
+                    f = fila.get()
+                    if f is None:
+                        break
+                    partes.append(f)
+                if partes:
+                    if ao_comecar:
+                        ao_comecar()
+                    self._falar_offline(" ".join(partes))
+            finally:
+                self.falando = False
 
     def parar(self) -> None:
         self._parar.set()

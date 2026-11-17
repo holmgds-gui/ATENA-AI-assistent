@@ -321,6 +321,18 @@ class Painel(FundoHud):
         self._progresso_att.connect(self.b_atualizar.setText)
         self._sair_para_atualizar.connect(lambda: QApplication.instance().quit())
         threading.Thread(target=self._checar_atualizacao, daemon=True).start()
+        # aviso: cérebro rodando no processador (lento)
+        self.b_gpu = QPushButton("  ⚠  O CÉREBRO ESTÁ USANDO O PROCESSADOR (LENTO) — TOQUE PRA RESOLVER  ")
+        self.b_gpu.setObjectName("perigo")
+        self.b_gpu.setCursor(Qt.PointingHandCursor)
+        self.b_gpu.setMinimumHeight(38)
+        self.b_gpu.hide()
+        self.b_gpu.clicked.connect(self._explicar_gpu)
+        lay.addWidget(self.b_gpu, 0, Qt.AlignHCenter)
+        from PySide6.QtCore import QTimer
+        self._t_gpu = QTimer(self)
+        self._t_gpu.timeout.connect(self._checar_gpu)
+        self._t_gpu.start(5000)
         lay.addStretch(1)
         self.orbe_inicio = criar_orbe(430, *tema.cores_da_config(self.config))
         lay.addWidget(self.orbe_inicio, 0, Qt.AlignHCenter)
@@ -360,6 +372,26 @@ class Painel(FundoHud):
         lay.addWidget(self.digitar_inicio, 0, Qt.AlignHCenter)
         self.paginas.addWidget(w)
         return w
+
+    # ---------------------------------------------------------------- placa de vídeo
+    def _checar_gpu(self):
+        est = getattr(self.cerebro, "estado_gpu", None) or {}
+        self.b_gpu.setVisible(est.get("na_gpu") is False)
+
+    def _explicar_gpu(self):
+        from PySide6.QtWidgets import QMessageBox
+        est = getattr(self.cerebro, "estado_gpu", None) or {}
+        vel = getattr(self.cerebro, "ultima_velocidade", 0) or 0
+        QMessageBox.information(self, "Deixar a ATENA rápida", (
+            f"O modelo está só {est.get('porcentagem_gpu', 0)}% na placa de vídeo"
+            + (f" (escrevendo a {vel:.0f} palavras/s)" if vel else "") + ".\n"
+            "No processador ela demora 10–40 s pra responder; na placa, 1–3 s.\n\n"
+            "Como resolver (tudo grátis):\n"
+            "1. Atualize o Ollama: baixe de novo em ollama.com e instale por cima. "
+            "As versões novas usam a placa AMD sozinhas (Vulkan).\n"
+            "2. Atualize o driver da AMD pelo app AMD Software: Adrenalin.\n"
+            "3. Reinicie o PC e abra a ATENA de novo.\n\n"
+            "Se continuar: na aba Cérebro (IA) troque pra um modelo menor (qwen3-vl:4b ou 2b)."))
 
     # ---------------------------------------------------------------- atualização automática
     def _checar_atualizacao(self):

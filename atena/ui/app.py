@@ -57,11 +57,24 @@ def _converter_atalho(texto: str) -> str:
     return "+".join(partes)
 
 
+def _prioridade_alta() -> None:
+    """Dá prioridade 'acima do normal' pra ATENA: o holograma não engasga quando o PC está ocupado
+    (ex.: o Ollama usando o processador)."""
+    try:
+        import sys
+        import psutil
+        if sys.platform == "win32":
+            psutil.Process().nice(psutil.ABOVE_NORMAL_PRIORITY_CLASS)
+    except Exception as e:
+        print(f"[app] não deu pra subir a prioridade: {e}")
+
+
 class AppAtena:
     def __init__(self, argv, usar_microfone=True):
         from PySide6.QtCore import QCoreApplication
         QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)  # vários hologramas OpenGL na mesma app
         self.qt = QApplication(argv)
+        _prioridade_alta()
         self.qt.setQuitOnLastWindowClosed(False)
         self.qt.setApplicationName("ATENA")
         tema.carregar_fontes()
