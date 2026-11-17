@@ -37,9 +37,185 @@ def _secao(texto):
     return rotulo_secao(texto)
 
 
-PAGINAS = [("01", "Conversa"), ("02", "Sistema"), ("03", "Habilidades"), ("04", "Rotinas"), ("05", "Celular"),
-           ("06", "Personalidade"), ("07", "Permissões"), ("08", "Aparência"), ("09", "Voz"), ("10", "Cérebro"),
-           ("11", "Memória"), ("12", "Sobre")]
+class BotaoIcone(QPushButton):
+    """Botão redondo com ícone desenhado (tela Início)."""
+
+    def __init__(self, icone: str, dica: str, parent=None):
+        super().__init__(parent)
+        self.icone = icone
+        self.setToolTip(dica)
+        self.setFixedSize(58, 58)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setStyleSheet("QPushButton { border-radius: 29px; padding: 0; }")
+
+    def paintEvent(self, ev):
+        super().paintEvent(ev)
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QPainter
+        from . import icones
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        icones.desenhar(p, self.icone, QRectF(17, 17, 24, 24), QColor(tema.TEXTO), 1.8)
+        p.end()
+
+
+# (ícone, nome por extenso)
+PAGINAS = [("inicio", "Início"), ("conversa", "Conversa"), ("sistema", "Monitor do sistema"),
+           ("habilidades", "Habilidades aprendidas"), ("rotinas", "Rotinas agendadas"),
+           ("celular", "Celular · Telegram"), ("personalidade", "Personalidade"), ("permissoes", "Permissões"),
+           ("aparencia", "Aparência"), ("voz", "Voz e ativação"), ("cerebro", "Cérebro (IA)"),
+           ("memoria", "Memória"), ("sobre", "Sobre a ATENA")]
+LARGURA_FECHADA, LARGURA_ABERTA = 64, 272
+
+
+class ItemBarra(QWidget):
+    """Item da barra lateral: ícone sempre visível + nome completo quando a barra abre."""
+    clicado = Signal()
+
+    def __init__(self, icone: str, texto: str, parent=None):
+        super().__init__(parent)
+        self.icone, self.texto = icone, texto
+        self.ativo = False
+        self._hover = False
+        self.aberta = 0.0  # 0 = só ícone, 1 = com nome
+        self.setFixedHeight(44)
+        self.setCursor(Qt.PointingHandCursor)
+        self.setAttribute(Qt.WA_Hover, True)
+        self.setToolTip(texto)
+
+    def enterEvent(self, e):
+        self._hover = True
+        self.update()
+
+    def leaveEvent(self, e):
+        self._hover = False
+        self.update()
+
+    def mouseReleaseEvent(self, e):
+        if e.button() == Qt.LeftButton:
+            self.clicado.emit()
+
+    def paintEvent(self, _):
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QColor, QLinearGradient, QPainter
+        from . import icones
+        from .hud import caminho_chanfrado, fonte
+        d = tema.DESTAQUE
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = QRectF(self.rect()).adjusted(8, 3, -8, -3)
+        if self.ativo or self._hover:
+            g = QLinearGradient(r.left(), 0, r.right(), 0)
+            g.setColorAt(0, tema.cor(d, 0.30 if self.ativo else 0.12))
+            g.setColorAt(1, tema.cor(d, 0.02))
+            p.fillPath(caminho_chanfrado(r, 7), g)
+        if self.ativo:
+            p.fillRect(QRectF(0, r.top() + 6, 3, r.height() - 12), tema.cor(d, 1))
+        cor_ic = QColor("#FFFFFF") if self.ativo else (QColor(tema.TEXTO) if self._hover else QColor(tema.APAGADO))
+        icones.desenhar(p, self.icone, QRectF(r.left() + 10, r.center().y() - 11, 22, 22), cor_ic)
+        if self.aberta > 0.05:
+            p.setOpacity(min(1.0, self.aberta * 1.4))
+            from PySide6.QtGui import QFont
+            p.setFont(fonte("Rajdhani", 11.5, QFont.Bold, 1.2))
+            p.setPen(cor_ic)
+            p.drawText(QRectF(r.left() + 44, r.top(), r.width() - 48, r.height()), Qt.AlignVCenter, self.texto.upper())
+        p.end()
+
+
+class RotuloStatus(QWidget):
+    """Status do salvamento: '// SALVO ✓' com a barra aberta, só '✓' com ela fechada."""
+
+    def __init__(self):
+        super().__init__()
+        self._texto = ""
+        self.curto = True
+        self.setFixedHeight(22)
+
+    def setText(self, t: str):
+        self._texto = t
+        self.update()
+
+    def text(self) -> str:
+        return self._texto
+
+    def paintEvent(self, _):
+        from PySide6.QtGui import QPainter
+        from .hud import fonte
+        if not self._texto:
+            return
+        p = QPainter(self)
+        p.setFont(fonte("Share Tech Mono", 8.5, espacamento=1.5))
+        p.setPen(tema.cor(tema.DESTAQUE, 0.9))
+        t = self._texto
+        if self.curto:
+            t = "✓" if "✓" in t else "…"
+        p.drawText(self.rect(), Qt.AlignCenter, t)
+        p.end()
+
+
+class BarraLateral(QWidget):
+    """Barra recolhível: fechada mostra só ícones; o botão de cima abre com os nomes completos."""
+    escolheu = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        self.setFixedWidth(LARGURA_FECHADA)
+        self.aberta = False
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 10, 0, 12)
+        lay.setSpacing(2)
+        self.botao = ItemBarra("menu", "Recolher menu")
+        self.botao.setToolTip("Abrir/fechar menu")
+        self.botao.clicado.connect(self.alternar)
+        lay.addWidget(self.botao)
+        lay.addSpacing(10)
+        self.itens = []
+        for i, (ic, nome) in enumerate(PAGINAS):
+            it = ItemBarra(ic, nome)
+            it.clicado.connect(lambda i=i: self.escolheu.emit(i))
+            lay.addWidget(it)
+            self.itens.append(it)
+        lay.addStretch(1)
+        self.status = RotuloStatus()
+        lay.addWidget(self.status)
+        self._anim_min = QPropertyAnimation(self, b"minimumWidth", self)
+        self._anim_max = QPropertyAnimation(self, b"maximumWidth", self)
+        for a in (self._anim_min, self._anim_max):
+            a.setDuration(260)
+            a.setEasingCurve(QEasingCurve.OutCubic)
+        self._anim_max.valueChanged.connect(self._ao_animar)
+
+    def _ao_animar(self, v):
+        frac = (v - LARGURA_FECHADA) / (LARGURA_ABERTA - LARGURA_FECHADA)
+        self.status.curto = frac < 0.6
+        self.status.update()
+        for it in [self.botao] + self.itens:
+            it.aberta = max(0.0, min(1.0, frac))
+            it.update()
+
+    def alternar(self):
+        self.aberta = not self.aberta
+        self.botao.icone = "fechar_menu" if self.aberta else "menu"
+        alvo = LARGURA_ABERTA if self.aberta else LARGURA_FECHADA
+        for a in (self._anim_min, self._anim_max):
+            a.stop()
+            a.setStartValue(self.width())
+            a.setEndValue(alvo)
+            a.start()
+
+    def marcar(self, i: int):
+        for k, it in enumerate(self.itens):
+            it.ativo = k == i
+            it.update()
+
+    def paintEvent(self, _):
+        from PySide6.QtGui import QPainter
+        p = QPainter(self)
+        p.fillRect(self.rect(), tema.cor("#000000", 0.35))
+        p.setPen(tema.cor(tema.DESTAQUE, 0.28))
+        p.drawLine(self.width() - 1, 0, self.width() - 1, self.height())
+        p.end()
 
 
 class Painel(FundoHud):
@@ -47,6 +223,8 @@ class Painel(FundoHud):
     cores_mudaram = Signal(str, str)
     rever_apresentacao = Signal()
     enviar_texto = Signal(str)
+    alternar_microfone = Signal()
+    chamar = Signal()
     _modelos_prontos = Signal(list)
     _status_cerebro = Signal(bool)
 
@@ -56,107 +234,198 @@ class Painel(FundoHud):
         self.cerebro = cerebro
         self.assistente = assistente
         self.setObjectName("janela")
-        self.setWindowTitle(f"{config.nome_ia} — Painel de controle")
-        self.resize(1080, 760)
-        self.setMinimumSize(900, 620)
+        self.setWindowTitle(config.nome_ia)
+        self.resize(1100, 760)
+        self.setMinimumSize(820, 600)
+        self._carregando = True
 
-        raiz = QVBoxLayout(self)
+        raiz = QHBoxLayout(self)
         raiz.setContentsMargins(0, 0, 0, 0)
         raiz.setSpacing(0)
+        self.barra = BarraLateral()
+        self.barra.escolheu.connect(self.ir_para)
+        raiz.addWidget(self.barra)
 
-        # ---- cabeçalho
-        cab = QHBoxLayout()
-        cab.setContentsMargins(18, 12, 22, 10)
-        cab.setSpacing(12)
-        from .holograma import Orbe
-        self.mini = Orbe(58, *tema.cores_da_config(config))
-        cab.addWidget(self.mini)
-        nomes = QVBoxLayout()
-        nomes.setSpacing(0)
-        titulo = QLabel(f'{config.nome_ia.upper()}<span style="color:{tema.DESTAQUE}">_</span>')
-        titulo.setObjectName("titulo")
-        from .. import __version__
-        sub = QLabel(f"PAINEL DE CONTROLE  //  v{__version__}")
-        sub.setObjectName("secao")
-        nomes.addWidget(titulo)
-        nomes.addWidget(sub)
-        cab.addLayout(nomes)
+        direita = QVBoxLayout()
+        direita.setContentsMargins(0, 0, 0, 0)
+        direita.setSpacing(0)
+        # ---- cabeçalho (some na tela Início, pra ela ficar limpa)
+        self.cabecalho = QWidget()
+        self.cabecalho.setObjectName("transparente")
+        cab = QHBoxLayout(self.cabecalho)
+        cab.setContentsMargins(22, 12, 22, 10)
+        self.titulo_pagina = QLabel("")
+        self.titulo_pagina.setObjectName("titulo")
+        self.titulo_pagina.setStyleSheet("font-size: 21px;")
+        from PySide6.QtWidgets import QSizePolicy
+        self.titulo_pagina.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        cab.addWidget(self.titulo_pagina)
         cab.addStretch(1)
         self.ind_cerebro = Indicador("Cérebro: verificando")
         self.ind_cerebro.set(None, "Cérebro: verificando")
-        self.ind_usuario = Indicador("")
-        self.ind_usuario.set(True, f"Operador: {config.nome_usuario}")
-        cab.addWidget(self.ind_usuario)
         cab.addWidget(self.ind_cerebro)
         self.relogio = QLabel("")
-        self.relogio.setStyleSheet(f"font-family:{tema.FONTE_MONO}; font-size:20px; color:{tema.DESTAQUE};"
+        self.relogio.setStyleSheet(f"font-family:{tema.FONTE_MONO}; font-size:18px; color:{tema.DESTAQUE};"
                                    f"padding-left:10px;")
         cab.addWidget(self.relogio)
-        raiz.addLayout(cab)
-        linha = QFrame()
-        linha.setFixedHeight(1)
-        linha.setStyleSheet(f"background: {tema.rgba(tema.DESTAQUE, 0.35)};")
-        raiz.addWidget(linha)
-
-        # ---- corpo: menu lateral + páginas
-        corpo = QHBoxLayout()
-        corpo.setContentsMargins(0, 10, 14, 0)
-        corpo.setSpacing(10)
-        lateral = QVBoxLayout()
-        lateral.setContentsMargins(4, 4, 0, 14)
-        lateral.setSpacing(2)
-        self.botoes_nav = []
-        for i, (cod, nome) in enumerate(PAGINAS):
-            b = BotaoNav(cod, nome)
-            b.setFixedWidth(200)
-            b.setFixedHeight(38)
-            b.clicado.connect(lambda i=i: self.ir_para(i))
-            lateral.addWidget(b)
-            self.botoes_nav.append(b)
-        lateral.addStretch(1)
-        self.aviso = QLabel("")
-        self.aviso.setObjectName("secao")
-        self.aviso.setContentsMargins(12, 0, 0, 4)
-        lateral.addWidget(self.aviso)
-        salvar = QPushButton("SALVAR  ▸")
-        salvar.setObjectName("primario")
-        salvar.setMinimumHeight(42)
-        salvar.clicked.connect(self._salvar)
-        cont = QHBoxLayout()
-        cont.setContentsMargins(10, 0, 0, 0)
-        cont.addWidget(salvar)
-        lateral.addLayout(cont)
-        corpo.addLayout(lateral)
+        direita.addWidget(self.cabecalho)
 
         self.paginas = QStackedWidget()
         from .aba_sistema import AbaSistema
         self.aba_sistema = AbaSistema()
-        for w in (self._aba_conversa(), self.aba_sistema, self._aba_habilidades(), self._aba_rotinas(),
-                  self._aba_celular(), self._aba_personalidade(), self._aba_permissoes(), self._aba_aparencia(),
-                  self._aba_voz_ouvido(), self._aba_cerebro(), self._aba_memoria(), self._aba_sobre()):
-            self.paginas.addWidget(w)
-        corpo.addWidget(self.paginas, 1)
-        raiz.addLayout(corpo, 1)
-        self.ir_para(0)
+        self.aviso = self.barra.status
+        for w in (self._aba_inicio(), self._aba_conversa(), self.aba_sistema, self._aba_habilidades(),
+                  self._aba_rotinas(), self._aba_celular(), self._aba_personalidade(), self._aba_permissoes(),
+                  self._aba_aparencia(), self._aba_voz_ouvido(), self._aba_cerebro(), self._aba_memoria(),
+                  self._aba_sobre()):
+            if w is not self.paginas.widget(0):
+                self.paginas.addWidget(w)
+        margem = QHBoxLayout()
+        margem.setContentsMargins(14, 0, 14, 0)
+        margem.addWidget(self.paginas)
+        direita.addLayout(margem, 1)
+        raiz.addLayout(direita, 1)
 
         from PySide6.QtCore import QTimer
+        self._timer_salvar = QTimer(self, singleShot=True, timeout=self._salvar)
+        self._ligar_salvamento_automatico()
         self._relogio_timer = QTimer(self, timeout=self._tique)
         self._relogio_timer.start(1000)
         self._tique()
         self._status_cerebro.connect(lambda ok: self.ind_cerebro.set(ok, "Cérebro online" if ok else "Cérebro offline"))
-        self.mini.set_estado("dormindo")
+        self._atual = 0
+        self.ir_para(0, animar=False)
+        self._carregando = False
 
-    def ir_para(self, i: int):
+    # ---------------------------------------------------------------- tela inicial (limpa)
+    def _aba_inicio(self):
+        from .holograma import criar_orbe
+        w = QWidget()
+        w.setObjectName("transparente")
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 18, 0, 22)
+        lay.setSpacing(6)
+        lay.addStretch(1)
+        self.orbe_inicio = criar_orbe(430, *tema.cores_da_config(self.config))
+        lay.addWidget(self.orbe_inicio, 0, Qt.AlignHCenter)
+        self.estado_inicio = QLabel("// EM ESPERA")
+        self.estado_inicio.setObjectName("secao")
+        self.estado_inicio.setAlignment(Qt.AlignHCenter)
+        lay.addWidget(self.estado_inicio)
+        self.fala_inicio = QLabel(f"Diga “{self.config.nome_ia.capitalize()}” ou bata duas palmas.")
+        self.fala_inicio.setWordWrap(True)
+        self.fala_inicio.setAlignment(Qt.AlignHCenter)
+        self.fala_inicio.setMinimumHeight(64)
+        self.fala_inicio.setStyleSheet(f"font-size: 21px; color: {tema.TEXTO}; padding: 0 60px;")
+        lay.addWidget(self.fala_inicio)
+        lay.addStretch(1)
+        # poucos botões: microfone, digitar, chamar, configurações
+        linha = QHBoxLayout()
+        linha.setSpacing(14)
+        linha.addStretch(1)
+        self.b_mic = BotaoIcone("voz", "Microfone ligado")
+        self.b_mic.clicked.connect(self.alternar_microfone.emit)
+        self.b_chamar = BotaoIcone("chamar", "Chamar a ATENA")
+        self.b_chamar.clicked.connect(self.chamar.emit)
+        self.b_digitar = BotaoIcone("teclado", "Digitar um pedido")
+        self.b_digitar.clicked.connect(self._mostrar_digitar)
+        self.b_config = BotaoIcone("engrenagem", "Configurações")
+        self.b_config.clicked.connect(lambda: (self.barra.aberta or self.barra.alternar()))
+        for b in (self.b_mic, self.b_chamar, self.b_digitar, self.b_config):
+            linha.addWidget(b)
+        linha.addStretch(1)
+        lay.addLayout(linha)
+        self.digitar_inicio = QLineEdit()
+        self.digitar_inicio.setPlaceholderText("› digite e aperte Enter…")
+        self.digitar_inicio.setMaximumWidth(560)
+        self.digitar_inicio.setMinimumHeight(42)
+        self.digitar_inicio.returnPressed.connect(self._enviar_inicio)
+        self.digitar_inicio.hide()
+        lay.addWidget(self.digitar_inicio, 0, Qt.AlignHCenter)
+        self.paginas.addWidget(w)
+        return w
+
+    def _mostrar_digitar(self):
+        self.digitar_inicio.setVisible(not self.digitar_inicio.isVisible())
+        if self.digitar_inicio.isVisible():
+            self.digitar_inicio.setFocus()
+
+    def _enviar_inicio(self):
+        t = self.digitar_inicio.text().strip()
+        if t:
+            self.digitar_inicio.clear()
+            self.enviar_texto.emit(t)
+
+    _ROTULO_ESTADO = {"dormindo": "// EM ESPERA", "ouvindo": "// OUVINDO", "pensando": "// PROCESSANDO",
+                      "falando": "// TRANSMITINDO", "mudo": "// MICROFONE DESLIGADO", "erro": "// FALHA"}
+
+    def mostrar_estado(self, estado: str):
+        self.orbe_inicio.set_estado(estado)
+        self.estado_inicio.setText(self._ROTULO_ESTADO.get(estado, ""))
+        self.b_mic.icone = "microfone_off" if estado == "mudo" else "voz"
+        self.b_mic.setToolTip("Microfone desligado" if estado == "mudo" else "Microfone ligado")
+        self.b_mic.update()
+
+    def mostrar_fala(self, de_quem: str, texto: str):
+        if de_quem == "atena":
+            self.fala_inicio.setStyleSheet(f"font-size: 21px; color: {tema.TEXTO}; padding: 0 60px;")
+            self.fala_inicio.setText(texto)
+        elif de_quem == "voce":
+            self.fala_inicio.setStyleSheet(f"font-size: 19px; color: {tema.APAGADO}; padding: 0 60px;")
+            self.fala_inicio.setText(f"“{texto}”")
+        elif de_quem == "acao":
+            self.estado_inicio.setText("// " + texto.replace("▸", "").strip().upper())
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        if hasattr(self, "orbe_inicio"):
+            lado = int(max(240, min(self.width() - 140, self.height() - 290, 560)))
+            if abs(self.orbe_inicio.width() - lado) > 8:
+                self.orbe_inicio.setFixedSize(lado, lado)
+
+    # ---------------------------------------------------------------- navegação com transição suave
+    def ir_para(self, i: int, animar: bool = True):
+        from PySide6.QtCore import QEasingCurve, QParallelAnimationGroup, QPoint, QPropertyAnimation
+        from PySide6.QtWidgets import QGraphicsOpacityEffect
+        anterior = self.paginas.currentWidget()
+        if animar and anterior is not None and i != self.paginas.currentIndex() and self.isVisible():
+            foto = QLabel(self.paginas)  # "foto" da página antiga some enquanto a nova desliza
+            foto.setPixmap(anterior.grab())
+            foto.setGeometry(anterior.geometry())
+            efeito = QGraphicsOpacityEffect(foto)
+            foto.setGraphicsEffect(efeito)
+            foto.show()
+            foto.raise_()
+        else:
+            foto = None
         self.paginas.setCurrentIndex(i)
-        nome = PAGINAS[i][1]
-        if nome == "Habilidades":
+        self._atual = i
+        self.barra.marcar(i)
+        ic, nome = PAGINAS[i]
+        self.cabecalho.setVisible(ic != "inicio")
+        self.titulo_pagina.setText(nome.upper())
+        if foto is not None:
+            novo = self.paginas.currentWidget()
+            grupo = QParallelAnimationGroup(self)
+            a1 = QPropertyAnimation(efeito, b"opacity")
+            a1.setDuration(240)
+            a1.setStartValue(1.0)
+            a1.setEndValue(0.0)
+            a2 = QPropertyAnimation(novo, b"pos")
+            a2.setDuration(280)
+            a2.setStartValue(QPoint(28, 0))
+            a2.setEndValue(QPoint(0, 0))
+            for a in (a1, a2):
+                a.setEasingCurve(QEasingCurve.OutCubic)
+                grupo.addAnimation(a)
+            grupo.finished.connect(foto.deleteLater)
+            grupo.start()
+            self._anim_pagina = grupo
+        if ic == "habilidades":
             self._carregar_hab()
-        elif nome == "Rotinas":
+        elif ic == "rotinas":
             self._carregar_rot()
-        for k, b in enumerate(self.botoes_nav):
-            b.ativo = k == i
-            b.update()
-        if PAGINAS[i][1] == "Sistema" and self.isVisible():
+        if ic == "sistema" and self.isVisible():
             self.aba_sistema.iniciar()
         else:
             self.aba_sistema.parar()
@@ -172,7 +441,75 @@ class Painel(FundoHud):
         self.aba_sistema.parar()
         super().hideEvent(ev)
 
-    # ------------------------------------------------------------------ abas
+    # ---------------------------------------------------------------- abrir/fechar com fade
+    def abrir_animado(self):
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        if self.isVisible() and not self.isMinimized():
+            self.raise_()
+            self.activateWindow()
+            return
+        self.setWindowOpacity(0.0)
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+        a = QPropertyAnimation(self, b"windowOpacity", self)
+        a.setDuration(260)
+        a.setStartValue(0.0)
+        a.setEndValue(1.0)
+        a.setEasingCurve(QEasingCurve.OutCubic)
+        a.start()
+        self._anim_janela = a
+        if hasattr(self, "orbe_inicio"):
+            self.orbe_inicio.materializar()
+
+    def closeEvent(self, ev):
+        """Fechar a janela só esconde (a ATENA continua rodando na bandeja), com fade."""
+        from PySide6.QtCore import QEasingCurve, QPropertyAnimation
+        if getattr(self, "_fechando", False):
+            self._fechando = False
+            ev.accept()
+            return
+        ev.ignore()
+        self._fechando = True
+        a = QPropertyAnimation(self, b"windowOpacity", self)
+        a.setDuration(200)
+        a.setStartValue(self.windowOpacity())
+        a.setEndValue(0.0)
+        a.setEasingCurve(QEasingCurve.InCubic)
+        a.finished.connect(lambda: (self.hide(), self.setWindowOpacity(1.0)))
+        a.finished.connect(lambda: setattr(self, "_fechando", False))
+        a.start()
+        self._anim_janela = a
+
+    # ---------------------------------------------------------------- salvamento automático
+    def _ligar_salvamento_automatico(self):
+        from PySide6.QtWidgets import (QAbstractButton, QAbstractSlider, QAbstractSpinBox, QComboBox,
+                                       QLineEdit, QPlainTextEdit)
+        ignorar = {getattr(self, n, None) for n in ("entrada", "digitar_inicio", "rot_pedido", "tg_token",
+                                                     "rot_hora", "rot_rep")}
+        for w in self.findChildren(QWidget):
+            if w in ignorar:
+                continue
+            if isinstance(w, QLineEdit) and not isinstance(w.parent(), QAbstractSpinBox):
+                w.textEdited.connect(self._agendar_salvar)
+            elif isinstance(w, QPlainTextEdit):
+                w.textChanged.connect(self._agendar_salvar)
+            elif isinstance(w, QAbstractButton) and w.isCheckable():
+                w.toggled.connect(self._agendar_salvar)
+            elif isinstance(w, QComboBox):
+                w.currentIndexChanged.connect(self._agendar_salvar)
+                if w.isEditable():
+                    w.editTextChanged.connect(self._agendar_salvar)
+            elif isinstance(w, QAbstractSlider):
+                w.valueChanged.connect(self._agendar_salvar)
+            elif isinstance(w, QAbstractSpinBox) and hasattr(w, "valueChanged"):
+                w.valueChanged.connect(self._agendar_salvar)
+
+    def _agendar_salvar(self, *_):
+        if not self._carregando:
+            self.aviso.setText("// SALVANDO…")
+            self._timer_salvar.start(700)
+
     def _aba_conversa(self):
         w = QWidget()
         w.setObjectName("transparente")
@@ -437,7 +774,8 @@ class Painel(FundoHud):
         lay.setSpacing(12)
         self.paleta = self.config.get("interface.paleta", "azul")
         self.cor_custom = self.config.get("interface.cor_personalizada") or "#2E9BFF"
-        self.preview = Orbe(230, *tema.cores_da_config(self.config))
+        from .holograma import criar_orbe
+        self.preview = criar_orbe(240, *tema.cores_da_config(self.config))
         self.preview.set_estado("pensando")
         lay.addWidget(self.preview, 0, Qt.AlignHCenter)
         lay.addWidget(_secao("Cor do holograma"))
@@ -509,7 +847,7 @@ class Painel(FundoHud):
         self._pintar_botoes_cor()
         prim, sec = self._cores_escolhidas()
         self.preview.set_cores(prim, sec)
-        self.mini.set_cores(prim, sec)
+        self.orbe_inicio.set_cores(prim, sec)
         self.cores_mudaram.emit(prim, sec)
 
     def _cores_escolhidas(self):
@@ -546,7 +884,7 @@ class Painel(FundoHud):
         fp.addRow("Força da palma", self.exig_palmas)
         r = self.config.get("rotina_palmas", {}) or {}
         self.rot_frase = QLineEdit(r.get("frase", ""))
-        self.rot_frase.setPlaceholderText("Bem-vindo de volta, {nome}. Preparando tudo.")
+        self.rot_frase.setPlaceholderText("vazio = “Bem-vindo de volta, <seu nome>. Preparando tudo.”")
         fp.addRow("Frase", self.rot_frase)
         self.rot_apps = QLineEdit(", ".join(r.get("apps") or []))
         self.rot_apps.setPlaceholderText("spotify, discord, visual studio code")
@@ -728,7 +1066,7 @@ class Painel(FundoHud):
         self.config.recarregar()
         self._carregar_memoria()
         super().showEvent(ev)
-        if PAGINAS[self.paginas.currentIndex()][1] == "Sistema":
+        if PAGINAS[self.paginas.currentIndex()][0] == "sistema":
             self.aba_sistema.iniciar()
 
     def _salvar(self):
@@ -760,5 +1098,5 @@ class Painel(FundoHud):
             "interface": {"paleta": self.paleta, "cor_personalizada": self.cor_custom,
                           "orbe_tamanho": self.tam_orbe.value(), "legenda": self.legenda.isChecked()},
         })
-        self.aviso.setText("// CONFIGURAÇÃO SALVA ✓")
+        self.aviso.setText("// SALVO ✓")
         self.salvo.emit()

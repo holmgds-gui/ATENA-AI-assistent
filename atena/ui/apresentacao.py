@@ -136,7 +136,8 @@ class Apresentacao(QDialog):
         cfg = self.config
         # 1. boas-vindas
         p = Pagina("", "")
-        orbe = Orbe(210, *tema.cores_da_config(cfg))
+        from .holograma import criar_orbe
+        orbe = criar_orbe(230, *tema.cores_da_config(cfg))
         p.lay.addWidget(orbe, 0, Qt.AlignHCenter)
         marca = QLabel(f'ATE<span style="color:{tema.DESTAQUE}">NA</span>')
         marca.setAlignment(Qt.AlignHCenter)

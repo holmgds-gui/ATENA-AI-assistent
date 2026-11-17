@@ -350,3 +350,16 @@ class Orbe(QWidget):
         tela.setOpacity(mat)
         tela.drawImage(0, 0, img)
         tela.end()
+
+
+def criar_orbe(tamanho: int = 190, primaria: str = "#2E9BFF", secundaria: str = "#9FE8FF", gpu: bool = True):
+    """Usa o holograma da placa de vídeo (OpenGL) quando dá; senão, o desenhado na CPU."""
+    import os
+    if gpu and os.environ.get("ATENA_SEM_GPU") != "1":
+        try:
+            from .holograma_gl import OrbeGL, gl_disponivel
+            if gl_disponivel():
+                return OrbeGL(tamanho, primaria, secundaria)
+        except Exception as e:
+            print(f"[holograma] usando versão simples: {e}")
+    return Orbe(tamanho, primaria, secundaria)

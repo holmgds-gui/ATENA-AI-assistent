@@ -62,6 +62,7 @@ class AbaSistema(QWidget):
                      "(grátis). Instale, abra como administrador e ligue <b>Options → Remote Web Server → Run</b>.")
         txt.setWordWrap(True)
         txt.setObjectName("subtitulo")
+        txt.setMinimumWidth(0)
         self.aviso.lay.addWidget(txt)
         h = QHBoxLayout()
         b1 = QPushButton("INSTALAR (WINGET)")
@@ -77,20 +78,23 @@ class AbaSistema(QWidget):
 
         # ---- medidores principais
         nucleo = PainelHud("Núcleo")
-        grade = QHBoxLayout()
+        grade = QGridLayout()
+        self._grade_medidores = grade
         self.m_cpu = Medidor("CPU", "%", 100, 80, 95)
         self.m_cpu_t = Medidor("CPU temp", "°C", 105, 75, 90)
         self.m_gpu = Medidor("GPU", "%", 100, 85, 98)
         self.m_gpu_t = Medidor("GPU temp", "°C", 110, 78, 92)
         self.m_ram = Medidor("RAM", "%", 100, 80, 92)
-        for m in (self.m_cpu, self.m_cpu_t, self.m_gpu, self.m_gpu_t, self.m_ram):
-            grade.addWidget(m)
+        self._medidores = [self.m_cpu, self.m_cpu_t, self.m_gpu, self.m_gpu_t, self.m_ram]
+        self._colunas = 0
+        self._arrumar_medidores(5)
         nucleo.lay.addLayout(grade)
         lay.addWidget(nucleo)
 
         # ---- clocks + memória
         linha = QHBoxLayout()
         linha.setSpacing(12)
+        self._linhas = [linha]
         clocks = PainelHud("Clocks · Potência")
         g = QGridLayout()
         g.setVerticalSpacing(7)
@@ -120,6 +124,7 @@ class AbaSistema(QWidget):
         # ---- gráficos
         linha2 = QHBoxLayout()
         linha2.setSpacing(12)
+        self._linhas.append(linha2)
         hist = PainelHud("Histórico · 60 s")
         self.g_uso = Grafico([("cpu", "destaque"), ("gpu", "#3DDCFF"), ("ram", "#B98CFF")], 100, 60, "%")
         hist.lay.addWidget(self.g_uso)
@@ -128,6 +133,7 @@ class AbaSistema(QWidget):
         self.g_rede = Grafico([("down", "destaque"), ("up", "#3DDCFF")], None, 60, "")
         rede.lay.addWidget(self.g_rede)
         self.rede_txt = QLabel("--")
+        self.rede_txt.setWordWrap(True)
         self.rede_txt.setStyleSheet(f"font-family:{tema.FONTE_MONO}; font-size:12.5px; color:{tema.APAGADO};")
         rede.lay.addWidget(self.rede_txt)
         linha2.addWidget(rede, 2)
@@ -136,6 +142,7 @@ class AbaSistema(QWidget):
         # ---- ventoinhas/sensores + processos
         linha3 = QHBoxLayout()
         linha3.setSpacing(12)
+        self._linhas.append(linha3)
         self.p_sensores = PainelHud("Ventoinhas · Sensores")
         self.sens_lay = QGridLayout()
         self.sens_lay.setVerticalSpacing(5)
@@ -163,6 +170,7 @@ class AbaSistema(QWidget):
         for i, nome in enumerate(("Processador", "Placa de vídeo", "Sistema", "Ligado há", "Processos", "Bateria")):
             a, b = _linha_info(nome)
             b.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            b.setWordWrap(True)
             g.addWidget(a, i // 2, (i % 2) * 2)
             g.addWidget(b, i // 2, (i % 2) * 2 + 1)
             self.info[nome] = b
@@ -171,6 +179,25 @@ class AbaSistema(QWidget):
         ident.lay.addLayout(g)
         lay.addWidget(ident)
         lay.addStretch(1)
+
+    # ------------------------------------------------------------------ layout que se adapta
+    def _arrumar_medidores(self, colunas: int):
+        if colunas == self._colunas:
+            return
+        self._colunas = colunas
+        for m in self._medidores:
+            self._grade_medidores.removeWidget(m)
+        for i, m in enumerate(self._medidores):
+            self._grade_medidores.addWidget(m, i // colunas, i % colunas)
+
+    def resizeEvent(self, ev):
+        super().resizeEvent(ev)
+        from PySide6.QtWidgets import QBoxLayout
+        w = self.width()
+        self._arrumar_medidores(5 if w > 700 else 3)
+        direcao = QBoxLayout.LeftToRight if w > 760 else QBoxLayout.TopToBottom
+        for l in self._linhas:
+            l.setDirection(direcao)
 
     # ------------------------------------------------------------------ coleta (thread separada)
     def iniciar(self):

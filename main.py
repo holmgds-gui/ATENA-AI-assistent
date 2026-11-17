@@ -28,7 +28,8 @@ def verificar() -> int:
     modulos = ["PySide6.QtWidgets", "requests", "yaml", "numpy", "sounddevice", "vosk", "faster_whisper",
                "ctranslate2", "edge_tts", "pygame", "pyttsx3", "pyautogui", "pyperclip", "psutil", "pynput",
                "ddgs", "mss", "PIL", "atena.assistente", "atena.ui.app", "atena.visao", "atena.monitor",
-               "atena.telegram", "atena.agenda", "atena.habilidades"]
+               "atena.telegram", "atena.agenda", "atena.habilidades", "PySide6.QtOpenGL",
+               "PySide6.QtOpenGLWidgets", "atena.ui.holograma_gl", "atena.ui.icones"]
     if sys.platform == "win32":
         modulos += ["uiautomation", "winrt.windows.media.ocr", "winrt.windows.graphics.imaging",
                     "winrt.windows.storage.streams", "winrt.windows.globalization"]
@@ -43,6 +44,13 @@ def verificar() -> int:
     cfg = Config()
     linhas.append(f"OK    config ({len(cfg.geral)} seções); vosk existe: "
                   f"{cfg.caminho(cfg.get('ativacao.modelo_vosk')).exists()}")
+    try:
+        from PySide6.QtWidgets import QApplication
+        _app = QApplication.instance() or QApplication([])
+        from atena.ui.holograma_gl import gl_disponivel
+        linhas.append(f"INFO  OpenGL 3.3 disponível: {gl_disponivel()} (sem isso usa o holograma simples)")
+    except Exception as e:
+        linhas.append(f"AVISO OpenGL: {e!r}")
     try:  # testes reais no Windows (não derrubam o resultado)
         from PIL import Image, ImageDraw
         from atena import visao

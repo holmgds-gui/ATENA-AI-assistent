@@ -266,8 +266,10 @@ class Assistente:
         nome = self.config.nome_usuario
         apps, sites, musica = r.get("apps") or [], r.get("sites") or [], (r.get("musica") or "").strip()
         tem_acoes = bool(apps or sites or musica)
-        frase = (r.get("frase") or "").replace("{nome}", nome).strip()
-        if not frase:
+        frase = (r.get("frase") or "").replace("{nome}", nome).replace("[nome]", nome).strip()
+        if not frase and tem_acoes:
+            frase = f"Bem-vindo de volta, {nome}. Preparando tudo."
+        elif not frase:
             frase = random.choice([f"Às ordens, {nome}.", "Pois não?", f"Sistemas prontos, {nome}."])
         elif not tem_acoes and "preparando" in frase.lower():
             frase = random.choice([f"Às ordens, {nome}.", "Pois não?", f"Estou aqui, {nome}.",

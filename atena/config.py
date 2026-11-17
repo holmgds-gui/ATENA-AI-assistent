@@ -43,7 +43,7 @@ PADRAO_CONFIG = {
                "max_fala": 15, "sensibilidade": 2.5, "microfone": None},
     "voz": {"motor": "edge", "voz": "pt-BR-FranciscaNeural", "velocidade": "+8%", "tom": "+0Hz"},
     "seguranca": {"autonomia": "confirmar_arriscadas"},
-    "rotina_palmas": {"frase": "Bem-vindo de volta, {nome}. Preparando tudo.", "apps": [], "sites": [],
+    "rotina_palmas": {"frase": "", "apps": [], "sites": [],
                       "musica": "", "ouvir_depois": True},
     "atalhos_rapidos": True,
     "interface": {"modo": "invisivel", "segundos_ate_sumir": 6, "paleta": "azul", "cor_personalizada": None, "orbe_tamanho": 190, "legenda": True},

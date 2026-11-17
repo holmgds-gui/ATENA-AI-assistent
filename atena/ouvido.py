@@ -37,6 +37,7 @@ class Ouvido:
         self._whisper = None
         self._whisper_pronto = threading.Event()
         self.nivel = 0.0                        # 0..1 — usado pelo orbe pra pulsar com a sua voz
+        self.bandas = None                      # equalizador da sua voz (enquanto ela ouve)
         self.ultima_ativacao = ""               # "voz" ou "palmas"
         self._palmas = DetectorPalmas()
         self._esperando = False                 # só procura palmas enquanto espera ativação
@@ -139,6 +140,16 @@ class Ouvido:
     @property
     def _limiar(self) -> float:
         return max(self._ruido * float(self.config.get("ouvido.sensibilidade", 2.5)), 250.0)
+
+    def bandas_microfone(self, bloco: bytes):
+        """48 bandas do último pedaço do microfone (pra esfera reagir à SUA voz enquanto ouve)."""
+        a = np.frombuffer(bloco, dtype=np.int16).astype(np.float32) / 32768.0
+        esp = np.abs(np.fft.rfft(a * np.hanning(len(a)), n=1024))
+        freqs = np.fft.rfftfreq(1024, 1 / TAXA)
+        lim = np.geomspace(90, 7900, 49)
+        b = np.array([esp[(freqs >= lim[k]) & (freqs < lim[k + 1])].mean() if ((freqs >= lim[k]) & (freqs < lim[k + 1])).any()
+                      else 0.0 for k in range(48)], dtype=np.float32)
+        return np.clip(np.log1p(b * 6) / 2.2, 0, 1)
 
     def _atualiza_nivel(self, rms: float) -> None:
         self.nivel = min(1.0, rms / (self._limiar * 4))
@@ -280,6 +291,7 @@ class Ouvido:
                 continue
             rms = self._rms(bloco)
             self._atualiza_nivel(rms)
+            self.bandas = self.bandas_microfone(bloco) if self.nivel > 0.02 else None
             alto = rms > self._limiar
             if not fala:
                 if alto:

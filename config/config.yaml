@@ -41,7 +41,7 @@ voz:
   tom: "+0Hz"
 
 rotina_palmas:                  # o que acontece quando você bate palmas
-  frase: "Bem-vindo de volta, {nome}. Preparando tudo."
+  frase: ""                     # vazio = "Bem-vindo de volta, <nome>. Preparando tudo."
   apps: []                      # ex: [spotify, discord, visual studio code]
   sites: []                     # ex: [youtube, https://github.com]
   musica: ""                    # ex: "back in black ac dc" (toca no YouTube)

@@ -19,7 +19,8 @@ class JanelaOrbe(QWidget):
     def __init__(self, tamanho: int = 170, legenda: bool = True, primaria="#2E9BFF", secundaria="#9FE8FF"):
         super().__init__(None, Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.setAttribute(Qt.WA_TranslucentBackground)
-        self.orbe = Orbe(tamanho, primaria=primaria, secundaria=secundaria)
+        from .holograma import criar_orbe
+        self.orbe = criar_orbe(tamanho, primaria, secundaria)
         self.legenda = QLabel("")
         self.legenda.setWordWrap(True)
         self.legenda.setAlignment(Qt.AlignCenter)

@@ -159,7 +159,7 @@ class PainelHud(QFrame):
 # ======================================================================
 class Medidor(QWidget):
     def __init__(self, rotulo: str, unidade: str = "%", maximo: float = 100, alerta: float | None = None,
-                 perigo: float | None = None, tamanho: int = 128, parent=None):
+                 perigo: float | None = None, tamanho: int = 112, parent=None):
         super().__init__(parent)
         self.rotulo, self.unidade, self.maximo = rotulo.upper(), unidade, maximo
         self.alerta, self.perigo = alerta, perigo

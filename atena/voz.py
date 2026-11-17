@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import re
 import tempfile
@@ -21,6 +22,38 @@ VOZES_EDGE = {
 }
 
 
+N_BANDAS = 48
+QUADRO = 1 / 60  # análise a 60 quadros por segundo
+
+
+def analisar_audio(amostras, taxa: int) -> tuple:
+    """Pré-calcula, pra cada 1/60 s da fala, o volume e 48 bandas de frequência (o equalizador)."""
+    import numpy as np
+    x = np.asarray(amostras, dtype=np.float32)
+    if x.ndim == 2:
+        x = x.mean(axis=1)
+    x /= 32768.0
+    passo = max(1, int(taxa * QUADRO))
+    janela = 1024
+    n = max(1, len(x) // passo)
+    pad = np.pad(x, (0, janela))
+    idx = np.arange(n)[:, None] * passo + np.arange(janela)[None, :]
+    quadros = pad[idx] * np.hanning(janela)
+    rms = np.sqrt(np.mean((pad[np.arange(n)[:, None] * passo + np.arange(passo)[None, :]]) ** 2, axis=1))
+    espectro = np.abs(np.fft.rfft(quadros, axis=1))
+    freqs = np.fft.rfftfreq(janela, 1 / taxa)
+    limites = np.geomspace(90, min(9000, taxa / 2 - 1), N_BANDAS + 1)
+    bandas = np.zeros((n, N_BANDAS), dtype=np.float32)
+    for b in range(N_BANDAS):
+        m = (freqs >= limites[b]) & (freqs < limites[b + 1])
+        if m.any():
+            bandas[:, b] = espectro[:, m].mean(axis=1)
+    bandas = np.log1p(bandas * 8)
+    bandas /= max(1e-6, np.percentile(bandas, 98))
+    nivel = rms / max(1e-6, np.percentile(rms, 97))
+    return np.clip(nivel, 0, 1).astype(np.float32), np.clip(bandas, 0, 1)
+
+
 def dividir_frases(texto: str) -> list[str]:
     partes = re.split(r"(?<=[.!?…])\s+", texto.strip())
     return [p for p in partes if p.strip()]
@@ -34,6 +67,7 @@ class Voz:
         self._mixer_ok = False
         self._offline = None
         self._trava = threading.Lock()
+        self._analise = None  # (inicio, nivel[], bandas[][]) da frase tocando agora
 
     # --------------------------------------------------------------
     def _iniciar_mixer(self) -> None:
@@ -61,14 +95,42 @@ class Voz:
     def _tocar_arquivo(self, caminho: str) -> None:
         import pygame
         self._iniciar_mixer()
-        pygame.mixer.music.load(caminho)
-        pygame.mixer.music.play()
-        while pygame.mixer.music.get_busy():
-            if self._parar.is_set():
-                pygame.mixer.music.stop()
-                break
-            time.sleep(0.03)
-        pygame.mixer.music.unload()
+        try:  # Sound deixa ler as amostras: a esfera mexe junto com cada sílaba
+            som = pygame.mixer.Sound(caminho)
+            taxa = pygame.mixer.get_init()[0]
+            try:
+                nivel, bandas = analisar_audio(pygame.sndarray.array(som), taxa)
+            except Exception:
+                nivel, bandas = None, None
+            canal = som.play()
+            self._analise = (time.time(), nivel, bandas) if nivel is not None else None
+            while canal is not None and canal.get_busy():
+                if self._parar.is_set():
+                    canal.stop()
+                    break
+                time.sleep(0.02)
+        except pygame.error:  # formato que o Sound não lê: toca do jeito simples
+            pygame.mixer.music.load(caminho)
+            pygame.mixer.music.play()
+            while pygame.mixer.music.get_busy():
+                if self._parar.is_set():
+                    pygame.mixer.music.stop()
+                    break
+                time.sleep(0.03)
+            pygame.mixer.music.unload()
+        finally:
+            self._analise = None
+
+    def analise_agora(self):
+        """(volume 0..1, 48 bandas 0..1) do pedaço da fala que está tocando agora, ou (0, None)."""
+        a = self._analise
+        if not a:
+            return 0.0, None
+        inicio, nivel, bandas = a
+        i = int((time.time() - inicio) / QUADRO)
+        if i < 0 or i >= len(nivel):
+            return 0.0, None
+        return float(nivel[i]), bandas[i]
 
     def _falar_offline(self, texto: str) -> None:
         import pyttsx3

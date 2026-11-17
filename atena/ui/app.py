@@ -59,6 +59,8 @@ def _converter_atalho(texto: str) -> str:
 
 class AppAtena:
     def __init__(self, argv, usar_microfone=True):
+        from PySide6.QtCore import QCoreApplication
+        QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)  # vários hologramas OpenGL na mesma app
         self.qt = QApplication(argv)
         self.qt.setQuitOnLastWindowClosed(False)
         self.qt.setApplicationName("ATENA")
@@ -77,6 +79,7 @@ class AppAtena:
                                bool(self.config.get("interface.legenda", True)),
                                *tema.cores_da_config(self.config))
         self.orbe.orbe.nivel_externo = lambda: self.assistente.ouvido.nivel if self.assistente.ouvido else 0.0
+        self.orbe.orbe.fonte_audio = self._audio_agora
         self.orbe.clicado.connect(self.assistente.chamar)
         self.orbe.abrir_painel.connect(self.abrir_painel)
         self.orbe.alternar_mudo.connect(self.assistente.alternar_mudo)
@@ -89,11 +92,23 @@ class AppAtena:
         self._escuta_esc = None
 
     # ------------------------------------------------------------------
+    def _audio_agora(self):
+        """O que a esfera usa pra se mexer: a voz da ATENA (falando) ou a sua (ouvindo)."""
+        a = self.assistente
+        if a.voz.falando:
+            return a.voz.analise_agora()
+        if a.ouvido is not None and a.estado == "ouvindo":
+            return a.ouvido.nivel, a.ouvido.bandas
+        return 0.0, None
+
+    def _painel_na_tela(self) -> bool:
+        return self.painel is not None and self.painel.isVisible() and not self.painel.isMinimized()
+
     def _criar_bandeja(self):
         self.bandeja = QSystemTrayIcon(icone_atena(), self.qt)
         self.bandeja.setToolTip("ATENA")
         menu = QMenu()
-        for texto, fn in (("Chamar", self.assistente.chamar), ("Configurações", self.abrir_painel),
+        for texto, fn in (("Abrir a ATENA", self.abrir_painel), ("Chamar", self.assistente.chamar),
                           ("Mostrar/esconder orbe", self._alternar_orbe),
                           ("Ligar/desligar microfone", self.assistente.alternar_mudo)):
             a = QAction(texto, menu)
@@ -105,7 +120,8 @@ class AppAtena:
         menu.addAction(s)
         self.bandeja.setContextMenu(menu)
         self.bandeja.activated.connect(
-            lambda motivo: self.abrir_painel() if motivo == QSystemTrayIcon.DoubleClick else None)
+            lambda motivo: self.abrir_painel() if motivo in (QSystemTrayIcon.DoubleClick, QSystemTrayIcon.Trigger)
+            else None)
         self._menu_bandeja = menu
         self.bandeja.show()
 
@@ -145,13 +161,17 @@ class AppAtena:
     def abrir_painel(self):
         if self.painel is None:
             self.painel = Painel(self.config, self.assistente.cerebro, self.assistente)
+            self.painel.orbe_inicio.fonte_audio = self._audio_agora
+            self.painel.orbe_inicio.nivel_externo = self.orbe.orbe.nivel_externo
+            self.painel.alternar_microfone.connect(self.assistente.alternar_mudo)
+            self.painel.chamar.connect(self.assistente.chamar)
             self.painel.enviar_texto.connect(self.assistente.enviar_texto)
             self.painel.salvo.connect(self._config_salva)
             self.painel.cores_mudaram.connect(self.orbe.orbe.set_cores)
             self.painel.rever_apresentacao.connect(lambda: Apresentacao(self.config, so_carrossel=True).exec())
-        self.painel.show()
-        self.painel.raise_()
-        self.painel.activateWindow()
+        self.painel.abrir_animado()
+        if self._invisivel:
+            self.orbe.hide()
 
     def _config_salva(self):
         self.assistente.recarregar_config()
@@ -167,17 +187,27 @@ class AppAtena:
         return self.config.get("interface.modo", "invisivel") == "invisivel"
 
     def _ao_evento(self, tipo, dados):
+        if self.painel is not None:
+            if tipo == "estado":
+                self.painel.mostrar_estado(dados)
+            elif tipo in ("voce", "atena"):
+                self.painel.mostrar_fala(tipo, dados)
+            elif tipo == "acao" and isinstance(dados, str) and dados.startswith("▸"):
+                self.painel.mostrar_fala("acao", dados)
         if tipo == "estado":
             self.orbe.orbe.set_estado(dados)
-            if self._invisivel:
+            if self._painel_na_tela():  # a janela principal já mostra a esfera grande
+                pass
+            elif self._invisivel:
                 if dados in ("ouvindo", "pensando", "falando", "erro"):
                     self.orbe.surgir()
                 elif dados in ("dormindo", "mudo"):
                     self.orbe.sumir_depois(float(self.config.get("interface.segundos_ate_sumir", 6)))
-        elif tipo == "acao" and dados == "ativou" and self._invisivel:
+        elif tipo == "acao" and dados == "ativou" and self._invisivel and not self._painel_na_tela():
             self.orbe.surgir()
         elif tipo == "acao" and isinstance(dados, str) and dados.startswith("▸"):
-            self.orbe.mostrar_texto(dados[1:].strip(), "acao", 4)
+            if not self._painel_na_tela():
+                self.orbe.mostrar_texto(dados[1:].strip(), "acao", 4)
             if self.painel is not None:
                 self.painel.adicionar_mensagem("acao", dados)
         elif tipo == "mira" and isinstance(dados, dict):
@@ -206,6 +236,7 @@ class AppAtena:
             self.qt.setStyleSheet(tema.aplicar_paleta(self.config))
             self.orbe.orbe.set_cores(*tema.cores_da_config(self.config))
         self.orbe.posicionar_canto()
+        self.abrir_painel()  # abre na tela Início, limpa, com a esfera grande
         if not self._invisivel:
             self.orbe.show()
         self._registrar_atalho()
