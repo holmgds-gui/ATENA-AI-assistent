@@ -23,8 +23,11 @@ Assistente de voz para o computador, no estilo do JARVIS. Você diz **"Atena"** 
 
 | Seu PC | Modelo | Download |
 |---|---|---|
-| Placa de vídeo com 8 GB ou mais | `qwen3:8b` | ~5 GB |
-| Placa mais fraca ou sem placa dedicada | `qwen3:4b` | ~2,5 GB |
+| Placa de vídeo com 10 GB ou mais | `qwen3-vl:8b` | ~6 GB |
+| Placa com 6–8 GB | `qwen3-vl:4b` | ~3,3 GB |
+| Placa fraca ou sem placa dedicada | `qwen3-vl:2b` | ~2 GB |
+
+O Qwen3-VL pensa **e** enxerga a tela com um modelo só, então não precisa trocar de modelo na placa de vídeo.
 
 Dá pra trocar depois em **Configurações → Cérebro**.
 
@@ -56,6 +59,22 @@ Dá pra trocar depois em **Configurações → Cérebro**.
 ### O holograma
 
 Globo de malha 3D + anéis de giroscópio + rede neural + partículas. Esperando: gira devagar · ouvindo: pulsa com a sua voz · pensando: pulsos correm pela rede · falando: a malha ondula e solta ondas · cinza: microfone desligado · vermelho: erro. Cor padrão azul elétrico; troque em **Aparência** (8 paletas + personalizada).
+
+## Ela enxerga a tela e mexe junto com você
+
+Peça coisas como *"Atena, abre o WhatsApp e manda 'chego em 10 min' pro João"* ou *"clica em configurações"*. Ela usa três "olhos":
+
+1. **Acessibilidade do Windows:** a lista de botões, campos, menus e abas da janela ativa, com posição exata.
+2. **OCR do Windows:** lê todo texto visível (sites, PDFs, jogos).
+3. **IA de visão (Qwen3-VL):** olha a imagem da tela pra achar ícones sem texto e descrever o que está aparecendo.
+
+Antes de cada clique aparece uma **mira holográfica** no ponto exato, e a legenda mostra o que ela está fazendo ("▸ clicando em Enviar").
+
+**Segurança:**
+- **Esc** enquanto ela age = para tudo na hora.
+- Mouse no **canto superior esquerdo** da tela também trava os cliques.
+- Antes de clicar em algo como *Excluir, Pagar, Comprar, Enviar, Desinstalar*, ela **pergunta antes** (no modo padrão de confirmação).
+- Tudo isso pode ser desligado na permissão **"Ver a tela e clicar"**.
 
 ## Monitor do PC (aba SISTEMA)
 
@@ -107,6 +126,7 @@ A pasta do projeto só tem os padrões. Pra rever a apresentação: **Configura�
 | `athena/sistema.py` | o que realmente mexe no PC (Windows/mac/Linux) |
 | `athena/voz.py` | a voz dela |
 | `athena/palmas.py` | detector de palmas (sem IA) |
+| `athena/visao.py` | olhos: acessibilidade + OCR + IA de visão |
 | `athena/monitor.py` | leitura de sensores do PC |
 | `athena/ui/` | holograma, apresentação, painel HUD e monitor |
 | `athena/ui/fontes/` | Orbitron, Rajdhani e Share Tech Mono (licença OFL) |
@@ -149,7 +169,10 @@ iniciar.bat debug              :: abre mostrando as mensagens (pra achar erros)
 
 ## Próximas fases
 
-- [ ] **Visão da tela:** clicar em botões e ler o que está aparecendo
+- [x] Visão da tela: ler, achar botões e clicar
+- [ ] Aprender rotinas novas sozinha (ideia do Hermes Agent)
+- [ ] Rotinas agendadas ("todo dia às 7h…")
+- [ ] Falar com ela pelo celular (Telegram/WhatsApp)
 - [ ] Cérebros de nuvem opcionais (Gemini / Claude) pra tarefas difíceis
 - [ ] Integração com WhatsApp, e-mail e agenda
 - [ ] App de celular pra falar com a ATHENA do PC

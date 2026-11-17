@@ -8,6 +8,7 @@ import datetime as dt
 import json
 import os
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -26,6 +27,7 @@ class Ferramenta:
     funcao: Callable
     arriscada: bool = False
     permissao: str = ""       # categoria em config.permissoes (vazio = sempre liberada)
+    risco: Callable | None = None  # risco(ctx, args) -> bool: arriscada só em certos casos
     # texto curto que ela fala pra pedir confirmação. Pode usar {campos}
     pergunta: str = ""
 
@@ -48,9 +50,9 @@ class Contexto:
 REGISTRO: dict[str, Ferramenta] = {}
 
 
-def ferramenta(nome, descricao, parametros=None, arriscada=False, pergunta="", permissao=""):
+def ferramenta(nome, descricao, parametros=None, arriscada=False, pergunta="", permissao="", risco=None):
     def deco(fn):
-        REGISTRO[nome] = Ferramenta(nome, descricao, parametros or {}, fn, arriscada, permissao, pergunta)
+        REGISTRO[nome] = Ferramenta(nome, descricao, parametros or {}, fn, arriscada, permissao, risco, pergunta)
         return fn
     return deco
 
@@ -214,6 +216,88 @@ def _esquecer(ctx: Contexto, trecho: str):
     return f"{n} fato(s) apagado(s)."
 
 
+# ======================================================================
+#  Visão e controle da tela
+# ======================================================================
+def _visao(ctx):
+    from . import visao
+    return visao.obter(ctx.config)
+
+
+@ferramenta("ver_tela",
+            "Olha a tela agora. Devolve a janela em foco e uma lista numerada de botões, campos, menus e textos "
+            "visíveis. Use antes de clicar. Se passar 'pergunta', a IA de visão também descreve a imagem "
+            "(útil pra ícones, imagens, jogos ou quando a lista não basta).",
+            {"pergunta": _txt(desc="O que você quer saber da tela (opcional)", opcional=True)},
+            permissao="tela")
+def _ver_tela(ctx: Contexto, pergunta: str = ""):
+    v = _visao(ctx).escanear()
+    saida = {"janela_em_foco": v.janela or "?", "total_elementos": len(v.elementos),
+             "elementos": [e.resumo() for e in v.elementos[:90]]}
+    if len(v.elementos) > 90:
+        saida["obs"] = "lista cortada; use ler_tela ou role a página"
+    if pergunta or not v.elementos:
+        try:
+            saida["visao_ia"] = _visao(ctx).descrever(pergunta)
+        except Exception as e:
+            saida["visao_ia"] = f"indisponível: {e}"
+    return json.dumps(saida, ensure_ascii=False)
+
+
+@ferramenta("ler_tela", "Lê em voz alta/retorna TODO o texto visível na tela (OCR), em ordem de leitura.",
+            permissao="tela")
+def _ler_tela(ctx: Contexto):
+    v = _visao(ctx).escanear()
+    texto = "\n".join(e.texto for e in v.elementos)
+    return texto[:3500] or "Não encontrei texto na tela."
+
+
+def _risco_clique(ctx, args) -> bool:
+    from . import visao
+    try:
+        r = _visao(ctx).resolver_alvo(str(args.get("alvo", "")))
+    except Exception:
+        return False
+    if r:
+        args["_resolvido"] = r  # evita procurar duas vezes
+        args["_rotulo"] = r[2]
+        return visao.parece_perigoso(r[2])
+    return visao.parece_perigoso(str(args.get("alvo", "")))
+
+
+@ferramenta("clicar",
+            "Clica num elemento da tela. 'alvo' pode ser o número que apareceu em ver_tela (ex: '12') ou o texto "
+            "do botão/link (ex: 'Enviar'). Se não achar pelo texto, a IA de visão procura na imagem.",
+            {"alvo": _txt(desc="Número do elemento ou texto dele"),
+             "tipo": _txt(desc="esquerdo, direito ou duplo", enum=["esquerdo", "direito", "duplo"], opcional=True)},
+            permissao="tela", risco=_risco_clique, pergunta="Posso clicar em {_rotulo}?")
+def _clicar(ctx: Contexto, alvo: str, tipo: str = "esquerdo", _resolvido=None, _rotulo=None):
+    vis = _visao(ctx)
+    r = _resolvido or vis.resolver_alvo(str(alvo))
+    if not r:
+        return f"Não achei '{alvo}' na tela. Use ver_tela pra ver o que existe."
+    x, y, rotulo = r
+    vis.clicar(x, y, tipo or "esquerdo", ctx.extras.get("mira"), rotulo)
+    time.sleep(0.5)
+    return f"Clique ({tipo or 'esquerdo'}) em '{rotulo}' na posição {x},{y}."
+
+
+@ferramenta("rolar", "Rola a página/janela pra cima ou pra baixo.",
+            {"direcao": _txt(desc="cima ou baixo", enum=["cima", "baixo"]),
+             "quantidade": _txt("integer", "Quanto rolar (1 a 30). Padrão 5", opcional=True)},
+            permissao="tela")
+def _rolar(ctx: Contexto, direcao: str, quantidade: int = 5):
+    _visao(ctx).rolar(direcao, quantidade)
+    return f"Rolei pra {direcao}."
+
+
+@ferramenta("focar_janela", "Traz pra frente uma janela que já está aberta (ex: 'WhatsApp', 'Chrome', 'Word').",
+            {"nome": _txt(desc="Parte do título da janela")}, permissao="tela")
+def _focar(ctx: Contexto, nome: str):
+    r = _visao(ctx).focar_janela(nome)
+    return f"Janela em foco: {r}" if r else f"Não achei janela aberta com '{nome}'."
+
+
 # ----------------------------------------------------------------------
 def descrever_data_hora(agora: dt.datetime | None = None) -> str:
     agora = agora or dt.datetime.now()
@@ -237,8 +321,13 @@ def executar(nome: str, args: dict, ctx: Contexto) -> str:
     if f.permissao and not ctx.config.permitido(f.permissao):
         return "Bloqueado: o usuário não deu permissão para isso nas configurações."
     try:
+        cancelar = ctx.extras.get("cancelar")
+        if cancelar is not None and cancelar.is_set():
+            return "Cancelado pelo usuário (tecla de pânico)."
         return str(f.funcao(ctx, **(args or {})))
     except TypeError as e:
         return f"Argumentos inválidos para {nome}: {e}"
     except Exception as e:
+        if type(e).__name__ == "FailSafeException":
+            return "Parado: o mouse foi pro canto da tela (trava de segurança)."
         return f"Erro em {nome}: {e}"

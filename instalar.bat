@@ -70,17 +70,19 @@ if errorlevel 1 (
     )
 )
 echo.
-echo [4/5] Qual modelo de IA baixar?
-echo       1 = qwen3:8b  ^(recomendado: placa de video com 8 GB ou mais, ~5 GB de download^)
-echo       2 = qwen3:4b  ^(placa mais fraca ou sem placa, ~2.5 GB^)
-echo       3 = pular
-choice /c 123 /m "      Escolha"
+echo [4/5] Qual modelo de IA baixar? (ele pensa E enxerga a tela)
+echo       1 = qwen3-vl:8b  ^(recomendado: placa de video com 10 GB ou mais, ~6 GB de download^)
+echo       2 = qwen3-vl:4b  ^(placa com 6-8 GB, ~3.3 GB^)
+echo       3 = qwen3-vl:2b  ^(placa fraca ou sem placa, ~2 GB^)
+echo       4 = pular
+choice /c 1234 /m "      Escolha"
 set "MODELO="
-if %errorlevel% equ 1 set "MODELO=qwen3:8b"
-if %errorlevel% equ 2 set "MODELO=qwen3:4b"
+if %errorlevel% equ 1 set "MODELO=qwen3-vl:8b"
+if %errorlevel% equ 2 set "MODELO=qwen3-vl:4b"
+if %errorlevel% equ 3 set "MODELO=qwen3-vl:2b"
 if defined MODELO (
     ollama pull %MODELO%
-    ".venv\Scripts\python.exe" -c "from athena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '%MODELO%'}})"
+    ".venv\Scripts\python.exe" -c "from athena.config import Config; Config().salvar_geral({'cerebro': {'modelo': '%MODELO%'}, 'visao': {'modelo': '%MODELO%'}})"
 )
 
 REM ---------- Extra: sensores de temperatura ----------

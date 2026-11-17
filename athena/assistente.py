@@ -32,7 +32,10 @@ class Assistente:
         self.cerebro = criar_cerebro(config)
         self.voz = Voz(config)
         self.ouvido = None
-        self.ctx = Contexto(config=config, falar=self.falar_async)
+        self._cancelar = threading.Event()
+        self.ctx = Contexto(config=config, falar=self.falar_async,
+                            extras={"cancelar": self._cancelar, "mira": self._mira})
+        self.executando = False
         self._rodando = threading.Event()
         self._interromper = threading.Event()
         self._chamado_manual = False
@@ -69,6 +72,17 @@ class Assistente:
             return
         self._chamado_manual = True
         self._interromper.set()
+
+    def panico(self) -> None:
+        """Tecla de pânico: para tudo que ela estiver fazendo no PC."""
+        if self.executando or self.voz.falando:
+            self._cancelar.set()
+            self.voz.parar()
+            self.evento("athena", "⛔ Parei tudo.")
+            self._log("[pânico] ações canceladas")
+
+    def _mira(self, x: int, y: int, rotulo: str = "") -> None:
+        self.evento("mira", {"x": x, "y": y, "rotulo": rotulo})
 
     def enviar_texto(self, texto: str) -> None:
         """Manda um comando escrito (pelo painel ou terminal)."""
@@ -261,14 +275,41 @@ class Assistente:
                 return
 
         self._estado("pensando")
+        self._cancelar.clear()
+        self.executando = True
         try:
-            resposta = self.cerebro.responder(
-                texto, self.ctx, confirmar=self._confirmar,
-                ao_usar_ferramenta=lambda nome, args: self.evento("acao", f"{nome} {args}"))
+            resposta = self.cerebro.responder(texto, self.ctx, confirmar=self._confirmar,
+                                              ao_usar_ferramenta=self._ao_usar_ferramenta)
         except ErroCerebro as e:
             self._estado("erro")
             resposta = str(e)
+        finally:
+            self.executando = False
+        if self._cancelar.is_set():
+            self._cancelar.clear()
+            resposta = "Parei, como você pediu."
         self.falar(resposta)
+
+    _ROTULOS = {
+        "abrir_app": "abrindo {nome}", "fechar_app": "fechando {nome}", "abrir_site": "abrindo {url}",
+        "pesquisar_web": "pesquisando: {consulta}", "mostrar_pesquisa": "pesquisando: {consulta}",
+        "tocar_youtube": "tocando {consulta}", "digitar_texto": "digitando…", "apertar_teclas": "teclas {teclas}",
+        "ver_tela": "olhando a tela…", "ler_tela": "lendo a tela…", "clicar": "clicando em {alvo}",
+        "rolar": "rolando pra {direcao}", "focar_janela": "indo pra janela {nome}", "info_sistema": "checando o PC…",
+        "volume": "volume: {acao}", "controle_midia": "mídia: {acao}", "timer": "timer de {minutos} min",
+        "criar_nota": "anotando…", "lembrar": "guardando na memória…", "energia": "{acao} o PC",
+    }
+
+    def _ao_usar_ferramenta(self, nome: str, args: dict) -> None:
+        if nome == "_fala":
+            self.evento("athena", args.get("texto", ""))
+            return
+        modelo = self._ROTULOS.get(nome, nome)
+        try:
+            rotulo = modelo.format(**{k: str(v)[:40] for k, v in args.items()})
+        except (KeyError, IndexError):
+            rotulo = modelo.split(" {")[0]
+        self.evento("acao", f"▸ {rotulo}")
 
     def _confirmar(self, pergunta: str) -> bool:
         self.falar(pergunta)

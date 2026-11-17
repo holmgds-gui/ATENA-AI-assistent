@@ -19,6 +19,7 @@ class Ponte(QObject):
     """Leva os eventos da thread da ATHENA pra thread da interface (com segurança)."""
     evento = Signal(str, object)
     chamar = Signal()
+    panico = Signal()
 
 
 def icone_athena(tamanho=64) -> QIcon:
@@ -69,6 +70,7 @@ class AppAthena:
         self.ponte = Ponte()
         self.ponte.evento.connect(self._ao_evento)
         self.ponte.chamar.connect(lambda: self.assistente.chamar())
+        self.ponte.panico.connect(lambda: self.assistente.panico())
         self.assistente = Assistente(self.config, evento=lambda t, d=None: self.ponte.evento.emit(t, d),
                                      usar_microfone=usar_microfone)
         self.orbe = JanelaOrbe(int(self.config.get("interface.orbe_tamanho", 190)),
@@ -80,8 +82,11 @@ class AppAthena:
         self.orbe.alternar_mudo.connect(self.assistente.alternar_mudo)
         self.orbe.sair.connect(self.sair)
         self.painel = None
+        from .mira import Mira
+        self.mira = Mira()
         self._criar_bandeja()
         self._hotkey = None
+        self._escuta_esc = None
 
     # ------------------------------------------------------------------
     def _criar_bandeja(self):
@@ -124,6 +129,18 @@ class AppAthena:
             self._hotkey.start()
         except Exception as e:
             print(f"[atalho] não consegui registrar o atalho de teclado: {e}")
+        if self._escuta_esc is None:  # tecla de pânico: Esc enquanto ela está agindo
+            try:
+                from pynput import keyboard
+
+                def ao_apertar(tecla):
+                    if tecla == keyboard.Key.esc and (self.assistente.executando or self.assistente.voz.falando):
+                        self.ponte.panico.emit()
+                self._escuta_esc = keyboard.Listener(on_press=ao_apertar)
+                self._escuta_esc.daemon = True
+                self._escuta_esc.start()
+            except Exception as e:
+                print(f"[pânico] não consegui escutar a tecla Esc: {e}")
 
     def abrir_painel(self):
         if self.painel is None:
@@ -159,6 +176,12 @@ class AppAthena:
                     self.orbe.sumir_depois(float(self.config.get("interface.segundos_ate_sumir", 6)))
         elif tipo == "acao" and dados == "ativou" and self._invisivel:
             self.orbe.surgir()
+        elif tipo == "acao" and isinstance(dados, str) and dados.startswith("▸"):
+            self.orbe.mostrar_texto(dados[1:].strip(), "acao", 4)
+            if self.painel is not None:
+                self.painel.adicionar_mensagem("acao", dados)
+        elif tipo == "mira" and isinstance(dados, dict):
+            self.mira.apontar(int(dados["x"]), int(dados["y"]), dados.get("rotulo", ""))
         elif tipo in ("voce", "athena"):
             self.orbe.mostrar_texto(dados, tipo)
             if self.painel is not None:
@@ -168,6 +191,8 @@ class AppAthena:
         self.assistente.encerrar()
         if self._hotkey:
             self._hotkey.stop()
+        if self._escuta_esc:
+            self._escuta_esc.stop()
         self.bandeja.hide()
         self.qt.quit()
 

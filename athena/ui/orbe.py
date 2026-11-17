@@ -81,8 +81,8 @@ class JanelaOrbe(QWidget):
     def mostrar_texto(self, texto: str, de_quem: str = "athena", segundos: float = 7) -> None:
         if not self._mostrar_legenda or not texto:
             return
-        cor = tema.DESTAQUE if de_quem == "athena" else tema.APAGADO
-        prefixo = "ATHENA ›" if de_quem == "athena" else "VOCÊ ›"
+        cor = tema.DESTAQUE if de_quem in ("athena", "acao") else tema.APAGADO
+        prefixo = {"athena": "ATHENA ›", "acao": "EXECUTANDO ›"}.get(de_quem, "VOCÊ ›")
         curto = texto if len(texto) < 220 else texto[:217] + "…"
         self.legenda.setText(f'<span style="font-family:\'Share Tech Mono\'; font-size:10px; color:{cor};'
                              f' letter-spacing:1px">{prefixo}</span><br>{curto}')

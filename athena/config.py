@@ -32,8 +32,9 @@ ARQ_APPS = PASTA_USUARIO / "apps.yaml"
 ARQ_MEMORIA = PASTA_USUARIO / "memoria.json"
 
 PADRAO_CONFIG = {
-    "cerebro": {"provedor": "ollama", "url": "http://localhost:11434", "modelo": "qwen3:8b",
-                "temperatura": 0.6, "max_historico": 16},
+    "cerebro": {"provedor": "ollama", "url": "http://localhost:11434", "modelo": "qwen3-vl:8b",
+                "temperatura": 0.6, "max_historico": 16, "max_passos": 16},
+    "visao": {"modelo": "qwen3-vl:8b", "usar_ia": True, "idioma_ocr": "pt-BR"},
     "ativacao": {"palavras": ["atena", "athena"], "atalho": "ctrl+alt+a",
                  "palmas": True, "num_palmas": 2, "exigencia_palmas": 1.0,
                  "modelo_vosk": "modelos/vosk-pt", "conversa_continua": True,
@@ -48,7 +49,7 @@ PADRAO_CONFIG = {
     "interface": {"modo": "invisivel", "segundos_ate_sumir": 6, "paleta": "azul", "cor_personalizada": None, "orbe_tamanho": 190, "legenda": True},
     "permissoes": {
         "apps": True, "fechar_apps": True, "navegador": True, "internet": True, "teclado": True,
-        "midia_volume": True, "energia": True, "notas_timers": True, "memoria": True,
+        "midia_volume": True, "energia": True, "notas_timers": True, "memoria": True, "tela": True,
     },
     "primeira_vez": True,
 }
@@ -59,6 +60,7 @@ PERMISSOES = {
     "navegador": ("Abrir sites e vídeos", "YouTube, Gmail, pesquisas no Google"),
     "internet": ("Pesquisar na internet", "Ela lê resultados pra responder notícias, preços, clima"),
     "teclado": ("Digitar e usar o teclado", "Escrever textos e apertar atalhos no app aberto"),
+    "tela": ("Ver a tela e clicar", "Ler o que aparece, achar botões e clicar junto com você"),
     "midia_volume": ("Volume e música", "Aumentar/baixar som, pausar e pular faixa"),
     "notas_timers": ("Notas e timers", "Anotar coisas e avisar depois de X minutos"),
     "memoria": ("Memória", "Lembrar fatos sobre você entre conversas"),

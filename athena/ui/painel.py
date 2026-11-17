@@ -384,6 +384,10 @@ class Painel(FundoHud):
         self.modelo.setEditable(True)
         self.modelo.addItem(self.config.get("cerebro.modelo", "qwen3:8b"))
         form.addRow("Modelo (Ollama)", self.modelo)
+        self.modelo_visao = QComboBox()
+        self.modelo_visao.setEditable(True)
+        self.modelo_visao.addItem(self.config.get("visao.modelo", "qwen3-vl:8b"))
+        form.addRow("Modelo de visão", self.modelo_visao)
         self.url = QLineEdit(self.config.get("cerebro.url", "http://localhost:11434"))
         form.addRow("Endereço do Ollama", self.url)
         self.temp = QDoubleSpinBox()
@@ -397,7 +401,8 @@ class Painel(FundoHud):
         self.hist.setValue(int(self.config.get("cerebro.max_historico", 16)))
         form.addRow("Mensagens lembradas", self.hist)
         lay.addLayout(form)
-        dica = QLabel("Placa de vídeo com 8 GB ou mais: <b>qwen3:8b</b>. Placa mais fraca: <b>qwen3:4b</b>.<br>"
+        dica = QLabel("Recomendado: <b>qwen3-vl:8b</b> nos dois campos (pensa e enxerga, sem trocar de modelo). "
+                      "Placa com 8 GB: <b>qwen3-vl:4b</b>.<br>"
                       "Pra baixar outro modelo: <b>ollama pull nome-do-modelo</b> no terminal.")
         dica.setObjectName("apagado")
         dica.setWordWrap(True)
@@ -437,6 +442,8 @@ class Painel(FundoHud):
         dicas = QLabel("• Diga “Atena” e o pedido, numa frase só.<br>"
                        "• Clique duas vezes no orbe ou use o atalho pra chamar sem falar.<br>"
                        "• Enquanto ela fala, clique no orbe pra interromper.<br>"
+                       "• <b>Esc</b> enquanto ela mexe no PC = para tudo na hora (tecla de pânico).<br>"
+                       "• Levar o mouse pro canto superior esquerdo também trava os cliques.<br>"
                        "• “Nova conversa” apaga o contexto da conversa atual.<br>"
                        "• Arraste o orbe pra onde quiser na tela.")
         dicas.setObjectName("subtitulo")
@@ -457,7 +464,10 @@ class Painel(FundoHud):
         import datetime as _dt
         hora = _dt.datetime.now().strftime("%H:%M:%S")
         mono = "font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1px"
-        if de_quem == "voce":
+        if de_quem == "acao":
+            html = (f'<p style="margin:2px 0 2px 14px"><span style="{mono}; color:{tema.APAGADO}">'
+                    f'[{hora}] {texto}</span></p>')
+        elif de_quem == "voce":
             quem = self.config.nome_usuario.upper()
             html = (f'<p style="margin:8px 0"><span style="{mono}; color:{tema.APAGADO}">[{hora}] {quem} ›</span>'
                     f'<br>{texto}</p>')
@@ -477,13 +487,14 @@ class Painel(FundoHud):
             self._modelos_prontos.emit(self.cerebro.modelos_instalados())
 
     def _preencher_modelos(self, modelos):
-        atual = self.modelo.currentText()
-        self.modelo.clear()
-        for m in modelos:
-            self.modelo.addItem(m)
-        if atual not in modelos:
-            self.modelo.addItem(atual)
-        self.modelo.setCurrentText(atual)
+        for combo in (self.modelo, self.modelo_visao):
+            atual = combo.currentText()
+            combo.clear()
+            for m in modelos:
+                combo.addItem(m)
+            if atual not in modelos:
+                combo.addItem(atual)
+            combo.setCurrentText(atual)
 
     def _carregar_memoria(self):
         self.lista_mem.clear()
@@ -528,6 +539,7 @@ class Painel(FundoHud):
             "cerebro": {"modelo": self.modelo.currentText().strip(), "url": self.url.text().strip(),
                         "temperatura": round(self.temp.value(), 2), "max_historico": self.hist.value()},
             "atalhos_rapidos": self.atalhos_rapidos.isChecked(),
+            "visao": {"modelo": self.modelo_visao.currentText().strip()},
             "interface": {"paleta": self.paleta, "cor_personalizada": self.cor_custom,
                           "orbe_tamanho": self.tam_orbe.value(), "legenda": self.legenda.isChecked()},
         })

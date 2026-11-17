@@ -18,3 +18,14 @@ pyperclip>=1.8
 psutil>=5.9
 pynput>=1.7
 ddgs>=9.0
+# Visão (enxergar a tela e clicar)
+mss>=9.0
+Pillow>=10.0
+uiautomation>=2.0.20; sys_platform == "win32"
+winrt-runtime>=2.2; sys_platform == "win32"
+winrt-Windows.Media.Ocr>=2.2; sys_platform == "win32"
+winrt-Windows.Graphics.Imaging>=2.2; sys_platform == "win32"
+winrt-Windows.Storage.Streams>=2.2; sys_platform == "win32"
+winrt-Windows.Globalization>=2.2; sys_platform == "win32"
+winrt-Windows.Foundation>=2.2; sys_platform == "win32"
+winrt-Windows.Foundation.Collections>=2.2; sys_platform == "win32"

@@ -18,7 +18,17 @@ def montar_prompt_sistema(config) -> str:
     memoria = "\n".join(f"- {m}" for m in config.memoria) or "- (nada ainda)"
     return f"""Você é {nome} ({p.get('significado', '')}), a assistente pessoal de voz do {usuario}.
 Você roda no computador dele ({platform.system()}) e consegue controlá-lo usando ferramentas:
-abrir apps e sites, pesquisar na internet, digitar, apertar teclas, controlar volume e música, criar timers e notas.
+abrir apps e sites, pesquisar na internet, digitar, apertar teclas, controlar volume e música, criar timers e notas,
+e também ENXERGAR A TELA e CLICAR (ver_tela, ler_tela, clicar, rolar, focar_janela).
+
+COMO MEXER EM APPS NA TELA (trabalhando junto com o usuário):
+1. Se precisar, abra o app (abrir_app) ou traga a janela pra frente (focar_janela).
+2. Use ver_tela pra ver a lista numerada de elementos.
+3. Use clicar com o NÚMERO do elemento (mais preciso que o texto). Pra escrever: clique no campo e use digitar_texto.
+4. Depois de cada ação importante, use ver_tela de novo pra confirmar que deu certo.
+5. Se o que você procura não está na lista (ícone sem texto, imagem), use ver_tela com uma 'pergunta' ou clique pelo texto
+   descrevendo o ícone, que a IA de visão procura.
+6. Faça uma ação por vez e não invente números de elementos.
 
 PERSONALIDADE:
 {p.get('estilo', '').strip()}
@@ -129,7 +139,11 @@ class CerebroOllama:
         mensagens = [{"role": "system", "content": montar_prompt_sistema(self.config)}] + self.historico
         autonomia = self.config.get("seguranca.autonomia", "confirmar_arriscadas")
 
-        for _ in range(6):  # no máximo 6 rodadas de ferramentas por pedido
+        cancelar = ctx.extras.get("cancelar")
+        for _ in range(int(self.config.get("cerebro.max_passos", 16))):  # rodadas de ferramentas por pedido
+            if cancelar is not None and cancelar.is_set():
+                self.historico.append({"role": "assistant", "content": "Parei, como você pediu."})
+                return "Parei, como você pediu."
             msg = self._chamar(mensagens)
             chamadas = msg.get("tool_calls") or []
             if not chamadas:
@@ -139,6 +153,8 @@ class CerebroOllama:
                 return resposta
 
             mensagens.append({"role": "assistant", "content": msg.get("content", ""), "tool_calls": chamadas})
+            if msg.get("content") and ao_usar_ferramenta:
+                ao_usar_ferramenta("_fala", {"texto": limpar_para_fala(msg["content"])})
             for ch in chamadas:
                 fn = ch.get("function", {})
                 nome = fn.get("name", "")
@@ -148,9 +164,9 @@ class CerebroOllama:
                         args = json.loads(args)
                     except json.JSONDecodeError:
                         args = {}
-                resultado = self._executar_com_seguranca(nome, args, ctx, autonomia, confirmar)
                 if ao_usar_ferramenta:
                     ao_usar_ferramenta(nome, args)
+                resultado = self._executar_com_seguranca(nome, args, ctx, autonomia, confirmar)
                 mensagens.append({"role": "tool", "content": resultado, "tool_name": nome})
 
         resposta = f"Me enrolei nas etapas dessa, {self.config.nome_usuario}. Pode pedir de outro jeito?"
@@ -161,12 +177,16 @@ class CerebroOllama:
         f = ferramentas.REGISTRO.get(nome)
         if f is None:
             return f"Ferramenta desconhecida: {nome}"
-        precisa = (autonomia == "confirmar_tudo") or (autonomia == "confirmar_arriscadas" and f.arriscada)
+        arriscada = f.arriscada or (f.risco is not None and autonomia != "livre" and f.risco(ctx, args))
+        precisa = (autonomia == "confirmar_tudo") or (autonomia == "confirmar_arriscadas" and arriscada)
         if precisa and confirmar is not None:
+            class _Padrao(dict):
+                def __missing__(self, chave):
+                    return str(args.get("alvo") or args.get("nome") or "isso")
             try:
-                pergunta = (f.pergunta or f"Posso executar {nome}?").format(**args)
-            except (KeyError, IndexError):
-                pergunta = f.pergunta or f"Posso executar {nome}?"
+                pergunta = (f.pergunta or f"Posso executar {nome}?").format_map(_Padrao(args))
+            except (IndexError, ValueError):
+                pergunta = f"Posso executar {nome}?"
             if not confirmar(pergunta):
                 return "O usuário NÃO autorizou. Não foi executado."
         return ferramentas.executar(nome, args, ctx)
