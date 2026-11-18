@@ -31,9 +31,9 @@ Assistente de voz para o computador, no estilo do JARVIS. Você diz **"Atena"** 
 
 | Seu PC | Modelo | Download |
 |---|---|---|
-| Placa de vídeo com 10 GB ou mais | `qwen3-vl:8b` | ~6 GB |
-| Placa com 6–8 GB | `qwen3-vl:4b` | ~3,3 GB |
-| Placa fraca ou sem placa dedicada | `qwen3-vl:2b` | ~2 GB |
+| Placa de vídeo com 10 GB ou mais | `qwen3-vl:8b-instruct` | ~6 GB |
+| Placa com 6–8 GB | `qwen3-vl:4b-instruct` | ~3,3 GB |
+| Placa fraca ou sem placa dedicada | `qwen3-vl:2b-instruct` | ~2 GB |
 
 O Qwen3-VL pensa **e** enxerga a tela com um modelo só, então não precisa trocar de modelo na placa de vídeo.
 

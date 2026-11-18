@@ -74,6 +74,8 @@ class AppAtena:
         from PySide6.QtCore import QCoreApplication
         QCoreApplication.setAttribute(Qt.AA_ShareOpenGLContexts)  # vários hologramas OpenGL na mesma app
         self.qt = QApplication(argv)
+        if _ja_aberta():          # já tem uma ATENA aberta: só mostra ela e sai
+            sys.exit(0)
         _prioridade_alta()
         self.qt.setQuitOnLastWindowClosed(False)
         self.qt.setApplicationName("ATENA")
@@ -257,7 +259,36 @@ class AppAtena:
         return self.qt.exec()
 
 
+NOME_INSTANCIA = "ATENA-instancia-unica"
+
+
+def _ja_aberta() -> bool:
+    """Se a ATENA já está rodando, pede pra ela aparecer e retorna True (essa cópia fecha).
+    Evita duas ATENAs ouvindo o microfone e falando ao mesmo tempo."""
+    from PySide6.QtNetwork import QLocalSocket
+    s = QLocalSocket()
+    s.connectToServer(NOME_INSTANCIA)
+    if s.waitForConnected(400):
+        s.write(b"mostrar")
+        s.flush()
+        s.waitForBytesWritten(400)
+        s.disconnectFromServer()
+        return True
+    return False
+
+
 def main(argv=None):
     argv = argv if argv is not None else sys.argv
     app = AppAtena(argv, usar_microfone="--sem-microfone" not in argv)
+    from PySide6.QtNetwork import QLocalServer
+    QLocalServer.removeServer(NOME_INSTANCIA)
+    servidor = QLocalServer()
+    servidor.listen(NOME_INSTANCIA)
+
+    def nova_conexao():
+        c = servidor.nextPendingConnection()
+        if c is not None:
+            c.readyRead.connect(lambda: (c.readAll(), app.abrir_painel()))
+    servidor.newConnection.connect(nova_conexao)
+    app._servidor_unico = servidor
     sys.exit(app.rodar())

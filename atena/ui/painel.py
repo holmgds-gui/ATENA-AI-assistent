@@ -375,7 +375,19 @@ class Painel(FundoHud):
 
     # ---------------------------------------------------------------- placa de vídeo
     def _checar_gpu(self):
+        baixando = getattr(self.cerebro, "baixando_rapido", None)
+        if baixando:
+            self.b_gpu.setObjectName("primario")
+            self.b_gpu.setText(f"  ⬇  BAIXANDO A VERSÃO RÁPIDA DO CÉREBRO… {baixando}  ")
+            self.b_gpu.setEnabled(False)
+            self.b_gpu.style().polish(self.b_gpu)
+            self.b_gpu.show()
+            return
         est = getattr(self.cerebro, "estado_gpu", None) or {}
+        self.b_gpu.setObjectName("perigo")
+        self.b_gpu.setText("  ⚠  O CÉREBRO ESTÁ USANDO O PROCESSADOR (LENTO) — TOQUE PRA RESOLVER  ")
+        self.b_gpu.setEnabled(True)
+        self.b_gpu.style().polish(self.b_gpu)
         self.b_gpu.setVisible(est.get("na_gpu") is False)
 
     def _explicar_gpu(self):
@@ -391,7 +403,7 @@ class Painel(FundoHud):
             "As versões novas usam a placa AMD sozinhas (Vulkan).\n"
             "2. Atualize o driver da AMD pelo app AMD Software: Adrenalin.\n"
             "3. Reinicie o PC e abra a ATENA de novo.\n\n"
-            "Se continuar: na aba Cérebro (IA) troque pra um modelo menor (qwen3-vl:4b ou 2b)."))
+            "Se continuar: na aba Cérebro (IA) troque pra um modelo menor (qwen3-vl:4b-instruct ou 2b)."))
 
     # ---------------------------------------------------------------- atualização automática
     def _checar_atualizacao(self):
@@ -1030,7 +1042,7 @@ class Painel(FundoHud):
         form.addRow("Modelo (Ollama)", self.modelo)
         self.modelo_visao = QComboBox()
         self.modelo_visao.setEditable(True)
-        self.modelo_visao.addItem(self.config.get("visao.modelo", "qwen3-vl:8b"))
+        self.modelo_visao.addItem(self.config.get("visao.modelo", "qwen3-vl:8b-instruct"))
         form.addRow("Modelo de visão", self.modelo_visao)
         self.url = QLineEdit(self.config.get("cerebro.url", "http://localhost:11434"))
         form.addRow("Endereço do Ollama", self.url)
@@ -1045,8 +1057,8 @@ class Painel(FundoHud):
         self.hist.setValue(int(self.config.get("cerebro.max_historico", 16)))
         form.addRow("Mensagens lembradas", self.hist)
         lay.addLayout(form)
-        dica = QLabel("Recomendado: <b>qwen3-vl:8b</b> nos dois campos (pensa e enxerga, sem trocar de modelo). "
-                      "Placa com 8 GB: <b>qwen3-vl:4b</b>.<br>"
+        dica = QLabel("Recomendado: <b>qwen3-vl:8b-instruct</b> nos dois campos (pensa e enxerga, sem trocar de modelo). "
+                      "Placa com 8 GB: <b>qwen3-vl:4b-instruct</b>.<br>"
                       "Pra baixar outro modelo: <b>ollama pull nome-do-modelo</b> no terminal.")
         dica.setObjectName("apagado")
         dica.setWordWrap(True)

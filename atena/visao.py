@@ -317,7 +317,7 @@ class Visao:
 
     def _perguntar_ia(self, img, pergunta: str, timeout: float = 120) -> str:
         url = str(self.config.get("cerebro.url", "http://localhost:11434")).rstrip("/")
-        modelo = self.config.get("visao.modelo", "qwen3-vl:8b")
+        modelo = self.config.get("visao.modelo", "qwen3-vl:8b-instruct")
         b64, _, _ = self._imagem_b64(img)
         corpo = {"model": modelo, "stream": False, "keep_alive": "30m", "think": False,
                  "options": {"temperature": 0.1},

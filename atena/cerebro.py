@@ -88,6 +88,8 @@ class CerebroOllama:
         self.ultimas_execucoes: list[tuple[str, dict, str]] = []  # (ferramenta, args, resultado) do último pedido
         self._usa_think = True
         self._ultimo_uso = 0.0
+        self._aceita_pensar = False
+        self.baixando_rapido = None   # texto de progresso quando estiver baixando a versão rápida
         self.estado_gpu = {"na_gpu": None, "porcentagem_gpu": None}
         self.ultima_velocidade = 0.0
 
@@ -117,6 +119,8 @@ class CerebroOllama:
         """Carrega o modelo na placa E já processa o prompt fixo (personalidade + ferramentas).
         Assim o primeiro pedido de verdade só precisa ler a sua frase."""
         inicio = time.time()
+        if self.variante_rapida(self.modelo) and self._trocar_para_rapido():
+            return  # _usar_modelo já aquece o modelo novo
         try:
             corpo = self._corpo([{"role": "system", "content": montar_prompt_sistema(self.config)},
                                  {"role": "user", "content": "oi"}], stream=False)
@@ -133,6 +137,62 @@ class CerebroOllama:
         if time.time() - getattr(self, "_ultimo_uso", 0) > 50 * 60:
             self._ultimo_uso = time.time()
             threading.Thread(target=self.aquecer, daemon=True).start()
+
+    # ------------------------------------------------ modelo "pensador" -> versão rápida (instruct)
+    @staticmethod
+    def variante_rapida(modelo: str) -> str | None:
+        nome, _, tag = modelo.partition(":")
+        if not nome.startswith("qwen3-vl"):
+            return None
+        tag = tag or "8b"
+        if "instruct" in tag:
+            return None
+        tamanho = tag.split("-")[0] or "8b"
+        return f"{nome}:{tamanho}-instruct"
+
+    def _trocar_para_rapido(self) -> bool:
+        """Troca pro mesmo modelo na versão que responde direto. Se não estiver baixada, baixa em segundo plano."""
+        rapido = self.variante_rapida(self.modelo)
+        if not rapido:
+            return False
+        if rapido in self.modelos_instalados():
+            self._usar_modelo(rapido)
+            return True
+        if self.baixando_rapido is None:
+            threading.Thread(target=self._baixar_rapido, args=(rapido,), daemon=True).start()
+        return False
+
+    def _usar_modelo(self, modelo: str) -> None:
+        antigo = self.modelo
+        novo = {"cerebro": {"modelo": modelo}}
+        if self.config.get("visao.modelo", "") == antigo:
+            novo["visao"] = {"modelo": modelo}
+        self.config.salvar_geral(novo)
+        self._aceita_pensar = False
+        print(f"[cérebro] trocado de {antigo} para {modelo} (responde direto, sem 'pensar alto')")
+        threading.Thread(target=self.aquecer, daemon=True).start()
+
+    def _baixar_rapido(self, modelo: str) -> None:
+        self.baixando_rapido = "começando…"
+        print(f"[cérebro] baixando {modelo} (versão rápida, grátis)…")
+        try:
+            with requests.post(self.url + "/api/pull", json={"model": modelo, "stream": True},
+                               stream=True, timeout=(5, 3600)) as r:
+                for linha in r.iter_lines():
+                    if not linha:
+                        continue
+                    d = json.loads(linha)
+                    if d.get("error"):
+                        raise RuntimeError(d["error"])
+                    total, feito = d.get("total") or 0, d.get("completed") or 0
+                    self.baixando_rapido = f"{int(100 * feito / total)}%" if total else d.get("status", "")
+                    if d.get("status") == "success":
+                        break
+            self._usar_modelo(modelo)
+        except Exception as e:
+            print(f"[cérebro] não deu pra baixar {modelo}: {e}")
+        finally:
+            self.baixando_rapido = None
 
     def diagnosticar(self) -> dict:
         """Vê se o modelo está na placa de vídeo ou no processador (o que deixa tudo lento)."""
@@ -167,7 +227,8 @@ class CerebroOllama:
             "keep_alive": "60m",
             "options": {"temperature": float(self.config.get("cerebro.temperatura", 0.6)),
                         "num_ctx": int(self.config.get("cerebro.contexto", 8192)),
-                        "num_predict": int(self.config.get("cerebro.max_tokens", 400))},
+                        "num_predict": int(self.config.get("cerebro.max_tokens", 400))
+                        * (5 if self._aceita_pensar else 1)},
         }
         if self._usa_think:
             corpo["think"] = False  # qwen3 e afins: desliga o "pensar alto" pra responder rápido
@@ -208,6 +269,13 @@ class CerebroOllama:
                 if parte.get("error"):
                     raise ErroCerebro(f"Erro do Ollama: {str(parte['error'])[:200]}")
                 msg = parte.get("message") or {}
+                if msg.get("thinking") and not self._aceita_pensar:
+                    # modelo "thinking": fica pensando centenas de palavras antes de responder (lento)
+                    r.close()
+                    if self._trocar_para_rapido():
+                        return self._chamar(mensagens, ao_frase)
+                    self._aceita_pensar = True       # sem versão rápida ainda: deixa pensar até o fim
+                    return self._chamar(mensagens, ao_frase)
                 if msg.get("tool_calls"):
                     chamadas.extend(msg["tool_calls"])
                 pedaco = msg.get("content") or ""
@@ -271,7 +339,8 @@ class CerebroOllama:
             chamadas = msg.get("tool_calls") or []
             if not chamadas:
                 self.final_transmitido = bool(ao_frase and limpar_para_fala(msg.get("content", "")))
-                resposta = limpar_para_fala(msg.get("content", "")) or "Feito."
+                resposta = limpar_para_fala(msg.get("content", "")) or (
+                    "Feito." if self.ultimas_execucoes else "Não entendi direito. Pode repetir?")
                 self.historico.append({"role": "assistant", "content": resposta})
                 self._podar()
                 return resposta

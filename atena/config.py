@@ -32,9 +32,9 @@ ARQ_APPS = PASTA_USUARIO / "apps.yaml"
 ARQ_MEMORIA = PASTA_USUARIO / "memoria.json"
 
 PADRAO_CONFIG = {
-    "cerebro": {"provedor": "ollama", "url": "http://localhost:11434", "modelo": "qwen3-vl:8b",
+    "cerebro": {"provedor": "ollama", "url": "http://localhost:11434", "modelo": "qwen3-vl:8b-instruct",
                 "temperatura": 0.6, "max_historico": 16, "max_passos": 16},
-    "visao": {"modelo": "qwen3-vl:8b", "usar_ia": True, "idioma_ocr": "pt-BR"},
+    "visao": {"modelo": "qwen3-vl:8b-instruct", "usar_ia": True, "idioma_ocr": "pt-BR"},
     "ativacao": {"palavras": ["atena"], "atalho": "ctrl+alt+a",
                  "palmas": True, "num_palmas": 2, "exigencia_palmas": 1.0,
                  "modelo_vosk": "modelos/vosk-pt", "conversa_continua": True,

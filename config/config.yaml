@@ -6,13 +6,13 @@
 cerebro:
   provedor: ollama              # por enquanto: ollama (gemini/claude podem ser plugados depois)
   url: http://localhost:11434
-  modelo: qwen3-vl:8b           # pensa E enxerga. Placa com 8 GB: qwen3-vl:4b
+  modelo: qwen3-vl:8b-instruct           # pensa E enxerga. Placa com 8 GB: qwen3-vl:4b-instruct
   temperatura: 0.6
   max_historico: 16             # quantas mensagens da conversa ela lembra
   max_passos: 16                # quantas ações seguidas ela pode fazer num pedido
 
 visao:
-  modelo: qwen3-vl:8b           # IA que enxerga a tela (use o mesmo do cérebro pra não trocar de modelo)
+  modelo: qwen3-vl:8b-instruct           # IA que enxerga a tela (use o mesmo do cérebro pra não trocar de modelo)
   usar_ia: true                 # usar a IA de visão quando o texto/acessibilidade não acharem o alvo
   idioma_ocr: pt-BR
 

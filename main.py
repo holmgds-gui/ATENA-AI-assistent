@@ -28,7 +28,7 @@ def verificar() -> int:
     modulos = ["PySide6.QtWidgets", "requests", "yaml", "numpy", "sounddevice", "vosk", "faster_whisper",
                "ctranslate2", "edge_tts", "pygame", "pyttsx3", "pyautogui", "pyperclip", "psutil", "pynput",
                "ddgs", "mss", "PIL", "atena.assistente", "atena.ui.app", "atena.visao", "atena.monitor",
-               "atena.telegram", "atena.agenda", "atena.habilidades", "PySide6.QtOpenGL",
+               "atena.telegram", "atena.agenda", "atena.habilidades", "PySide6.QtNetwork", "PySide6.QtOpenGL",
                "PySide6.QtOpenGLWidgets", "atena.ui.holograma_gl", "atena.ui.icones"]
     if sys.platform == "win32":
         modulos += ["uiautomation", "winrt.windows.media.ocr", "winrt.windows.graphics.imaging",

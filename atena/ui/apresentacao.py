@@ -261,9 +261,9 @@ class Apresentacao(QDialog):
         ci.setContentsMargins(0, 0, 0, 0)
         ci.addWidget(rotulo_secao("Cérebro de IA"))
         self.combo_modelo = QComboBox()
-        for m, d in (("qwen3-vl:8b", "qwen3-vl:8b  ·  placa de vídeo com 10 GB+  (~6 GB)"),
-                     ("qwen3-vl:4b", "qwen3-vl:4b  ·  placa com 6–8 GB  (~3,3 GB)"),
-                     ("qwen3-vl:2b", "qwen3-vl:2b  ·  placa fraca / sem placa  (~2 GB)")):
+        for m, d in (("qwen3-vl:8b-instruct", "qwen3-vl:8b-instruct  ·  placa de vídeo com 10 GB+  (~6 GB)"),
+                     ("qwen3-vl:4b-instruct", "qwen3-vl:4b-instruct  ·  placa com 6–8 GB  (~3,3 GB)"),
+                     ("qwen3-vl:2b-instruct", "qwen3-vl:2b-instruct  ·  placa fraca / sem placa  (~2 GB)")):
             self.combo_modelo.addItem(d, m)
         self.combo_modelo.setCurrentIndex(1)
         ci.addWidget(self.combo_modelo)

@@ -20,7 +20,7 @@ for pacote in ["vosk", "faster_whisper", "ctranslate2", "uiautomation", "winrt",
     except Exception as e:
         print(f"[spec] pulando {pacote}: {e}")
 
-hiddenimports += ["PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "atena.ui.holograma_gl", "atena.ui.icones",
+hiddenimports += ["PySide6.QtNetwork", "PySide6.QtOpenGL", "PySide6.QtOpenGLWidgets", "atena.ui.holograma_gl", "atena.ui.icones",
                   "pyttsx3.drivers", "pyttsx3.drivers.sapi5", "pynput.keyboard._win32", "pynput.mouse._win32",
                   "win32timezone", "atena.ui.app", "atena.visao", "atena.monitor", "atena.telegram"]
 

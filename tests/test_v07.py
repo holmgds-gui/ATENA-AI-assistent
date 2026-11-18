@@ -42,3 +42,54 @@ def test_atalho_so_nome_do_app_e_abriu(monkeypatch, tmp_path):
     assert atalhos.tentar("Atena, abre o spotify por favor", Cfg)
     assert atalhos.tentar("qual a capital da frança", Cfg) is None
     assert abertos == ["spotify", "whatsapp", "spotify"]
+
+
+def test_variante_rapida():
+    from atena.cerebro import CerebroOllama as C
+    assert C.variante_rapida("qwen3-vl:4b") == "qwen3-vl:4b-instruct"
+    assert C.variante_rapida("qwen3-vl:8b-thinking") == "qwen3-vl:8b-instruct"
+    assert C.variante_rapida("qwen3-vl:8b-instruct") is None
+    assert C.variante_rapida("llama3.2:3b") is None
+
+
+def test_modelo_pensador_troca_para_rapido(monkeypatch, tmp_path):
+    import json as _j
+    import os
+    os.environ["ATENA_DADOS"] = str(tmp_path)
+    import importlib, atena.config as c
+    importlib.reload(c)
+    from atena import cerebro
+    importlib.reload(cerebro)
+    cfg = c.Config()
+    cfg.salvar_geral({"cerebro": {"modelo": "qwen3-vl:4b"}, "visao": {"modelo": "qwen3-vl:4b"}})
+    usados = []
+
+    class R:
+        status_code, ok, text = 200, True, ""
+
+        def __init__(self, modelo):
+            self.modelo = modelo
+
+        def close(self):
+            pass
+
+        def iter_lines(self):
+            if self.modelo.endswith("instruct"):
+                yield _j.dumps({"message": {"content": "Oi, Gui."}, "done": True}).encode()
+            else:
+                yield _j.dumps({"message": {"thinking": "hmm"}}).encode()
+
+        def json(self):
+            return {"models": [{"name": "qwen3-vl:4b"}, {"name": "qwen3-vl:4b-instruct"}]}
+
+    def post(url, json=None, **k):
+        usados.append(json["model"])
+        return R(json["model"])
+    monkeypatch.setattr(cerebro.requests, "post", post)
+    monkeypatch.setattr(cerebro.requests, "get", lambda *a, **k: R(""))
+    monkeypatch.setattr(cerebro.threading, "Thread", lambda *a, **k: type("T", (), {"start": lambda s: None})())
+    cb = cerebro.CerebroOllama(cfg)
+    msg = cb._chamar([{"role": "user", "content": "oi"}])
+    assert msg["content"] == "Oi, Gui."
+    assert usados == ["qwen3-vl:4b", "qwen3-vl:4b-instruct"]
+    assert cfg.get("cerebro.modelo") == "qwen3-vl:4b-instruct" and cfg.get("visao.modelo") == "qwen3-vl:4b-instruct"
