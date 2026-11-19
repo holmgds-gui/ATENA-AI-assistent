@@ -81,7 +81,7 @@ class Ouvido:
         try:
             import os
             from faster_whisper import WhisperModel
-            tamanho = self.config.get("ouvido.modelo_whisper", "base")
+            tamanho = self.config.get("ouvido.modelo_whisper", "small")
             disp = self.config.get("ouvido.dispositivo", "cpu")
             local = self.config.caminho(f"modelos/whisper-{tamanho}")  # vem dentro do instalador
             origem = str(local) if local.exists() else tamanho
@@ -286,7 +286,7 @@ class Ouvido:
                     max_seg: float | None = None) -> bytes | None:
         """Espera você começar a falar e grava até um silêncio. None se ninguém falou."""
         max_seg = max_seg or float(self.config.get("ouvido.max_fala", 15))
-        silencio_fim = float(self.config.get("ouvido.silencio_fim", 1.0))
+        silencio_fim = float(self.config.get("ouvido.silencio_fim", 1.2))
         pre = collections.deque(maxlen=int(BLOCOS_POR_SEG * 0.4))
         fala: list[bytes] = []
         quietos = 0
@@ -324,6 +324,34 @@ class Ouvido:
         return b"".join(fala)
 
     # ------------------------------------------------------------------ transcrição
+    # apps que muita gente tem: se estiverem no PC, entram no "vocabulário" do reconhecimento
+    _APPS_COMUNS = ("Spotify", "WhatsApp", "Claude", "Chrome", "Google", "YouTube", "Discord", "Steam",
+                    "Instagram", "TikTok", "Netflix", "Gmail", "Word", "Excel", "PowerPoint", "Edge",
+                    "Bloco de Notas", "Calculadora", "Explorador de Arquivos", "Telegram", "Roblox",
+                    "Valorant", "Epic Games", "Gemini", "ChatGPT", "VS Code", "Notion", "Canva", "Outlook")
+
+    def _vocabulario(self, nome: str) -> str:
+        """Frase de exemplo que 'ensina' ao Whisper os nomes certos (Claude, não 'cloud')."""
+        if getattr(self, "_vocab_cache", None) and time.time() - self._vocab_cache[0] < 600:
+            return self._vocab_cache[1]
+        nomes = []
+        try:
+            from . import sistema
+            instalados = {normalizar(a.nome) for a in sistema.INDICE.apps} if sistema.INDICE.carregado else set()
+            for n in self._APPS_COMUNS:
+                k = normalizar(n)
+                if not instalados or any(k == i or i.startswith(k + " ") for i in instalados):
+                    nomes.append(n)
+            for apelido in (self.config.apelidos_apps or {}):
+                nomes.append(str(apelido))
+        except Exception:
+            nomes = list(self._APPS_COMUNS)
+        nomes = list(dict.fromkeys(nomes))[:28]
+        texto = (f"{nome}, abre o Spotify. {nome}, toca uma música. {nome}, pesquisa no Google. "
+                 f"Apps: {', '.join(nomes)}.")
+        self._vocab_cache = (time.time(), texto)
+        return texto
+
     def transcrever(self, audio: bytes) -> str:
         self._whisper_pronto.wait(timeout=120)
         if self._whisper is None or not audio:
@@ -334,7 +362,7 @@ class Ouvido:
         segmentos, _ = self._whisper.transcribe(
             amostras, language="pt", beam_size=int(self.config.get("ouvido.precisao", 1)), vad_filter=False,
             condition_on_previous_text=False, without_timestamps=True,
-            initial_prompt=f"{nome}, abre o Spotify. {nome}, pesquisa no Google.",
+            initial_prompt=self._vocabulario(nome),
         )
         texto = " ".join(s.text.strip() for s in segmentos).strip()
         self.log(f"[tempo] transcrição {len(amostras) / TAXA:.1f}s de áudio em {time.time() - inicio:.2f}s: {texto!r}")

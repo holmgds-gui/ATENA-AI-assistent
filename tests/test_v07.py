@@ -16,8 +16,9 @@ def test_migracao_whisper(tmp_path, monkeypatch):
     (tmp_path / "config.yaml").write_text(yaml.safe_dump({"ouvido": {"modelo_whisper": "small"}}), encoding="utf-8")
     importlib.reload(c)
     cfg = c.Config()
-    assert cfg.get("ouvido.modelo_whisper") == "base"
-    assert cfg.geral.get("versao_config") == 2
+    assert cfg.get("ouvido.modelo_whisper") == "small"   # v0.10: small vem no instalador
+    assert cfg.geral.get("versao_config") == 3
+    assert cfg.get("ouvido.silencio_fim") == 1.2
 
 
 def test_separa_frases_prontas():
@@ -93,3 +94,18 @@ def test_modelo_pensador_troca_para_rapido(monkeypatch, tmp_path):
     assert msg["content"] == "Oi, Gui."
     assert usados == ["qwen3-vl:4b", "qwen3-vl:4b-instruct"]
     assert cfg.get("cerebro.modelo") == "qwen3-vl:4b-instruct" and cfg.get("visao.modelo") == "qwen3-vl:4b-instruct"
+
+
+def test_vocabulario_inclui_apps_instalados(monkeypatch):
+    from atena import ouvido, sistema
+    from atena.sistema import App
+    monkeypatch.setattr(sistema.INDICE, "apps", [App("Claude", "a"), App("Spotify", "b"), App("Paint", "c")])
+    monkeypatch.setattr(sistema.INDICE, "carregado", True)
+    o = ouvido.Ouvido.__new__(ouvido.Ouvido)
+
+    class Cfg:
+        apelidos_apps = {"zap": "WhatsApp"}
+    o.config = Cfg()
+    v = o._vocabulario("Atena")
+    assert "Claude" in v and "Spotify" in v and "zap" in v
+    assert "Netflix" not in v   # não instalado: não entra

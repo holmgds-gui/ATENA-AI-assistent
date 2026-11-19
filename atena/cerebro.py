@@ -119,6 +119,7 @@ class CerebroOllama:
         """Carrega o modelo na placa E já processa o prompt fixo (personalidade + ferramentas).
         Assim o primeiro pedido de verdade só precisa ler a sua frase."""
         inicio = time.time()
+        self._ultimo_uso = inicio   # evita aquecer duas vezes ao mesmo tempo
         if self.variante_rapida(self.modelo) and self._trocar_para_rapido():
             return  # _usar_modelo já aquece o modelo novo
         try:

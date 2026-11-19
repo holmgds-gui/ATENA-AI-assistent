@@ -27,10 +27,10 @@ ativacao:
   segundos_conversa_continua: 6
 
 ouvido:
-  modelo_whisper: base          # tiny | base | small | medium (maior = mais preciso e mais lento)
+  modelo_whisper: small         # tiny | base | small | medium (maior = mais preciso e mais lento)
   precisao: 1                   # 1 = mais rápido; 3-5 = um pouco mais preciso e mais lento
   dispositivo: cpu              # cpu (placas AMD não usam CUDA)
-  silencio_fim: 1.0             # segundos de silêncio pra considerar que você terminou de falar
+  silencio_fim: 1.2             # segundos de silêncio pra considerar que você terminou de falar
   max_fala: 15                  # tempo máximo de uma fala, em segundos
   sensibilidade: 2.5            # quanto maior, mais alto você precisa falar pra ela captar
   microfone: null               # null = microfone padrão do Windows

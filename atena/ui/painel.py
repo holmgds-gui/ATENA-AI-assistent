@@ -1017,10 +1017,10 @@ class Painel(FundoHud):
         self.sens.setToolTip("Maior = precisa falar mais alto (bom em lugar barulhento)")
         form.addRow("Exigência de volume", self.sens)
         self.whisper = QComboBox()
-        for t, d in (("tiny", "tiny — instantâneo, erra mais"), ("base", "base — rápido (recomendado)"),
-                     ("small", "small — mais preciso, mais lento"), ("medium", "medium — preciso, bem lento")):
+        for t, d in (("tiny", "tiny — instantâneo, erra muito"), ("base", "base — rápido, erra nomes"),
+                     ("small", "small — preciso (recomendado)"), ("medium", "medium — o mais preciso, lento")):
             self.whisper.addItem(d, t)
-        self.whisper.setCurrentIndex(max(0, self.whisper.findData(self.config.get("ouvido.modelo_whisper", "base"))))
+        self.whisper.setCurrentIndex(max(0, self.whisper.findData(self.config.get("ouvido.modelo_whisper", "small"))))
         form.addRow("Reconhecimento de fala", self.whisper)
         self.atalhos_rapidos = QCheckBox("Comandos rápidos sem IA (abrir apps, horas, volume)")
         self.atalhos_rapidos.setChecked(bool(self.config.get("atalhos_rapidos", True)))

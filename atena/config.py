@@ -39,7 +39,7 @@ PADRAO_CONFIG = {
                  "palmas": True, "num_palmas": 2, "exigencia_palmas": 1.0,
                  "modelo_vosk": "modelos/vosk-pt", "conversa_continua": True,
                  "segundos_conversa_continua": 6},
-    "ouvido": {"modelo_whisper": "base", "precisao": 1, "dispositivo": "cpu", "silencio_fim": 1.0,
+    "ouvido": {"modelo_whisper": "small", "precisao": 1, "dispositivo": "cpu", "silencio_fim": 1.2,
                "max_fala": 15, "sensibilidade": 2.5, "microfone": None},
     "voz": {"motor": "edge", "voz": "pt-BR-FranciscaNeural", "velocidade": "+8%", "tom": "+0Hz"},
     "seguranca": {"autonomia": "confirmar_arriscadas"},
@@ -147,6 +147,15 @@ class Config:
             if (self.geral.get("ouvido") or {}).get("modelo_whisper") == "small":
                 self.geral["ouvido"]["modelo_whisper"] = "base"   # 3x mais rápido, já vem no instalador
             self.geral["versao_config"] = 2
+            v = 2
+        if v < 3:
+            # v0.10: reconhecimento maior (erra bem menos) já vem no instalador
+            ouv = self.geral.setdefault("ouvido", {})
+            if ouv.get("modelo_whisper") in (None, "base", "tiny"):
+                ouv["modelo_whisper"] = "small"
+            if float(ouv.get("silencio_fim", 1.0) or 1.0) < 1.2:
+                ouv["silencio_fim"] = 1.2
+            self.geral["versao_config"] = 3
             if ARQ_CONFIG.exists():
                 _salvar_yaml(ARQ_CONFIG, self.geral)
 
